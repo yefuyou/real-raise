@@ -86,16 +86,6 @@ npm run verify
 npm run build
 ```
 
-## 数据与文档
-
-- [项目计划与分工](./docs/PROJECT_PLAN.md)
-- [分析维度与产品边界](./docs/ANALYSIS_DIMENSIONS.md)
-- [历史官方数据档案](./docs/DATA_SOURCES_HISTORICAL.md)
-- [数据与计算口径](./docs/DATA_SOURCES_2025.md)
-- [InfiniSynapse 接入边界](./docs/INFINISYNAPSE_INTEGRATION_BOUNDARY.md)
-- [哈吉米前端交接说明](./docs/HAJIMI_FRONTEND_HANDOFF.md)
-- [部署与公开体验计划](./docs/DEPLOYMENT.md)
-
 ## 技术结构
 
 ```text
