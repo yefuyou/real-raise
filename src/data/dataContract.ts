@@ -1,5 +1,5 @@
 /**
- * “涨薪还剩多少？”的数据源元数据契约。
+ * “你的涨薪，消失在到手之前了吗？”的数据源元数据契约。
  *
  * 本文件定义结构，并登记已经由项目负责人核验过的官方来源。
  */
@@ -13,6 +13,8 @@ import {
   HISTORICAL_INCOME_BENCHMARKS,
   HISTORICAL_SPENDING,
 } from './officialHistorical'
+import { OFFICIAL_2026_H1_CPI } from './official2026'
+import { CITY_BENCHMARK_RECORDS } from './cityBenchmarks'
 
 export interface DataSourceMetadata {
   sourceName: string;
@@ -27,6 +29,26 @@ export interface DataSourceMetadata {
 
 /** 已核验的 2021–2025 官方数据字段登记。 */
 export const verifiedDataSources: DataSourceMetadata[] = [
+  ...CITY_BENCHMARK_RECORDS.map((row) => ({
+    sourceName: row.sourceName,
+    sourceUrl: row.sourceUrl,
+    year: Number.parseInt(row.period.slice(0, 4), 10),
+    scope: `${row.cityName} 居民消费价格 ${row.period}`,
+    unit: '指数（上年=100）',
+    field: 'cityCpiIndex',
+    category: row.label,
+    value: row.value,
+  })),
+  ...OFFICIAL_2026_H1_CPI.map((row) => ({
+    sourceName: '国家统计局：2026 年上半年居民消费价格主要数据',
+    sourceUrl: row.sourceUrl,
+    year: 2026,
+    scope: '全国居民消费价格 2026H1',
+    unit: '%',
+    field: 'halfYearYoYPercent',
+    category: row.label,
+    value: row.halfYearYoYPercent,
+  })),
   ...OFFICIAL_2025_CPI.map((row) => ({
     sourceName: '国家统计局：2025 年居民消费价格主要数据',
     sourceUrl: row.sourceUrl,

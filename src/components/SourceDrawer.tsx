@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { ExternalLink, ShieldCheck, X } from 'lucide-react'
 import type { SourceReference } from '../api/realRaiseContract'
 
@@ -9,10 +9,40 @@ interface SourceDrawerProps {
 }
 
 export const SourceDrawer: React.FC<SourceDrawerProps> = ({ isOpen, onClose, sources }) => {
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement
+      const timer = setTimeout(() => closeBtnRef.current?.focus(), 50)
+      return () => clearTimeout(timer)
+    } else {
+      previousFocusRef.current?.focus()
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (
-    <div className="drawer-overlay" onClick={onClose} aria-modal="true" role="dialog">
+    <div
+      className="drawer-overlay"
+      onClick={onClose}
+      aria-modal="true"
+      role="dialog"
+      aria-labelledby="source-drawer-title"
+    >
       <div className="drawer-container" onClick={(e) => e.stopPropagation()}>
         <div className="drawer-header">
           <div className="drawer-title-wrap">
@@ -20,11 +50,16 @@ export const SourceDrawer: React.FC<SourceDrawerProps> = ({ isOpen, onClose, sou
               <ShieldCheck size={18} />
             </span>
             <div>
-              <h3>公开统计数据依据</h3>
+              <h3 id="source-drawer-title">公开统计数据依据</h3>
               <p className="drawer-subtitle">本项目不凭空假定，所有比对数据均来自于公开权威渠道</p>
             </div>
           </div>
-          <button className="drawer-close-btn" onClick={onClose} aria-label="关闭数据来源窗口">
+          <button
+            ref={closeBtnRef}
+            className="drawer-close-btn"
+            onClick={onClose}
+            aria-label="关闭数据来源窗口"
+          >
             <X size={20} />
           </button>
         </div>
@@ -33,7 +68,7 @@ export const SourceDrawer: React.FC<SourceDrawerProps> = ({ isOpen, onClose, sou
           <div className="source-banner">
             <span className="source-banner-badge">口径说明</span>
             <p>
-              真实房租支出优先取自您输入的设定值；下方宏观统计数据是全国 2025 年 CPI 与城镇消费结构基准，不替代个人实际支出，也不代表某个城市的租金变化。
+              用户实际输入与本地算表结果优先；下方宏观统计数据是全国或城市公开基准，用来解释背景，不替代个人支出，也不代表某个城市家庭的实际价格变化。
             </p>
           </div>
 

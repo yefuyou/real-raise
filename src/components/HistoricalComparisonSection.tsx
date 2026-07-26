@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
-import { Database, FileText, HelpCircle, Info } from 'lucide-react'
+import { Database, ExternalLink, FileText, HelpCircle, Info, MapPin } from 'lucide-react'
 import {
   HISTORICAL_CPI,
   HISTORICAL_INCOME_BENCHMARKS,
 } from '../data/officialHistorical'
 import { verifiedDataSources } from '../data/dataContract'
+import { HEFEI_2024_CPI, HEFEI_2024_CPI_SOURCE } from '../data/hefei2024'
 
 export const HistoricalComparisonSection: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<number>(2025)
@@ -97,8 +98,40 @@ export const HistoricalComparisonSection: React.FC = () => {
         </div>
       </div>
 
+      <div className="city-card-box">
+        <div className="city-card-header">
+          <span className="city-name-tag">
+            <MapPin size={13} /> 合肥市 2024 年城市 CPI 官方基准卡
+          </span>
+          <span className="city-source-label">
+            来源：
+            <a
+              href={HEFEI_2024_CPI_SOURCE.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="source-link-inline"
+            >
+              广州统计年鉴 2025 <ExternalLink size={11} />
+            </a>
+          </span>
+        </div>
+        <div className="cpi-chips-grid">
+          {HEFEI_2024_CPI.map((cpi) => (
+            <div className="cpi-chip" key={cpi.category}>
+              <span className="cpi-label">{cpi.label}</span>
+              <span className={`cpi-val ${cpi.yoyRate > 0 ? 'up' : cpi.yoyRate < 0 ? 'down' : 'flat'}`}>
+                {cpi.yoyRate > 0 ? `+${cpi.yoyRate}%` : `${cpi.yoyRate}%`}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="city-card-note">
+          * 注：此数据为合肥市 2024 年官方全量 CPI 城市样本，非 2026H1 预测；未单独公布 2026H1 的城市数据继续自动回退至全国基准。
+        </p>
+      </div>
+
       <p className="macro-footnote">
-        * 官方数据登记总数：<strong>{verifiedDataSources.length}</strong> 条。真实房租与算表结果始终以您的个人输入为准，上方统计基准仅作为宏观背景对照。
+        * 官方数据登记总数：<strong>{verifiedDataSources.length}</strong> 条。个人输入与本地算表结果始终优先，上方全国/城市统计基准仅作为背景对照。
       </p>
     </div>
   )
