@@ -5,15 +5,34 @@ import type {
   StartAnalysisResponse,
   CategoryKey,
 } from './realRaiseContract'
-import { REAL_RAISE_BACKEND_ROUTES } from './realRaiseContract'
 import { OFFICIAL_2025_INCOME_BENCHMARKS } from '../data/official2025'
 import { OFFICIAL_2026_H1_CPI } from '../data/official2026'
+import { loadApiKey } from './apiKeyStore'
+import {
+  cancelByokTask,
+  exportByokReplay,
+  getByokArtifact,
+  isByokTask,
+  startByokAnalysis,
+  subscribeByokTask,
+} from './infiniSynapseBrowserClient'
+import {
+  cancelReplayTask,
+  findReplayForRequest,
+  getReplayArtifact,
+  isReplayTask,
+  subscribeReplayTask,
+} from './replayClient'
+import { buildAnalysisManifest, buildEvidenceCsv } from './analysisArtifacts'
 
 export interface AnalysisClientOptions {
   useMock?: boolean
 }
 
-const OFFICIAL_SOURCES: SourceReference[] = [
+/** 演示模式（无 Key）下也要能下载凭证，这里留存请求用于本地生成产物。 */
+const mockRequests = new Map<string, StartAnalysisRequest>()
+
+export const OFFICIAL_SOURCES: SourceReference[] = [
   {
     name: '国家统计局：2026 年上半年居民消费价格主要数据',
     year: 2026,
@@ -28,11 +47,20 @@ const OFFICIAL_SOURCES: SourceReference[] = [
   },
 ]
 
+/**
+ * 三态模式：
+ * - `live`：访客填了自己的 Key，浏览器直连平台，消耗访客自己的额度；
+ * - `replay`：无 Key，但当前输入与某个真实任务存档一致，播放存档（零额度）；
+ * - `mock`：无 Key 且无匹配存档，本地模拟状态机。
+ * 三态在 UI 上显式标注，回放绝不冒充实时。
+ */
+export type AnalysisMode = 'live' | 'replay' | 'mock'
+
 export class RealRaiseApiClient {
   private useMock: boolean
 
   constructor(options: AnalysisClientOptions = {}) {
-    // Default to real backend routes (/api/real-raise/*). Pass useMock: true for Mock mode.
+    // 不强制 Mock 时，由浏览器里是否配置了访问者自己的 API Key 决定实际模式。
     this.useMock = options.useMock ?? false
   }
 
@@ -40,30 +68,40 @@ export class RealRaiseApiClient {
     this.useMock = useMock
   }
 
+  /** 同步可知的模式（replay 需异步匹配存档，由 startAnalysis 决定）。 */
+  public getActiveMode(): 'live' | 'mock' {
+    if (this.useMock) return 'mock'
+    return loadApiKey() ? 'live' : 'mock'
+  }
+
   public async startAnalysis(request: StartAnalysisRequest): Promise<StartAnalysisResponse> {
     if (this.useMock) return this.mockStartAnalysis(request)
 
-    const response = await fetch(REAL_RAISE_BACKEND_ROUTES.start, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    })
-
-    if (!response.ok) {
-      throw new Error(`请求本项目服务端失败：HTTP ${response.status}`)
+    if (loadApiKey()) {
+      const handle = startByokAnalysis(request, loadApiKey(), OFFICIAL_SOURCES)
+      return {
+        taskId: handle.taskId,
+        status: handle.status,
+        calculation: request.calculation,
+      }
     }
 
-    return (await response.json()) as StartAnalysisResponse
+    // 无 Key：先找真实任务存档（输入一致才播放），找不到再退演示模式。
+    const replayTaskId = await findReplayForRequest(request)
+    if (replayTaskId) {
+      return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
+    }
+    return this.mockStartAnalysis(request)
   }
 
   public async cancelAnalysis(taskId: string): Promise<boolean> {
-    if (this.useMock || taskId.startsWith('mock-task-')) return true
-    try {
-      const response = await fetch(REAL_RAISE_BACKEND_ROUTES.cancel(taskId), { method: 'POST' })
-      return response.ok
-    } catch {
-      return false
+    if (this.useMock || taskId.startsWith('mock-task-')) {
+      mockRequests.delete(taskId)
+      return true
     }
+    if (isReplayTask(taskId)) return cancelReplayTask(taskId)
+    if (!isByokTask(taskId)) return false
+    return cancelByokTask(taskId)
   }
 
   public subscribeTaskEvents(
@@ -74,41 +112,52 @@ export class RealRaiseApiClient {
     if (this.useMock || taskId.startsWith('mock-task-')) {
       return this.simulateTaskEvents(taskId, request, onEvent)
     }
+    if (isReplayTask(taskId)) return subscribeReplayTask(taskId, onEvent)
+    return subscribeByokTask(taskId, onEvent)
+  }
 
-    const eventSource = new EventSource(REAL_RAISE_BACKEND_ROUTES.events(taskId))
-    eventSource.onmessage = (message) => {
-      try {
-        const event = JSON.parse(message.data) as AgentTaskEvent
-        onEvent(event)
-        if (event.type === 'completed' || event.type === 'failed') eventSource.close()
-      } catch {
-        onEvent({
-          type: 'failed',
+  /** dev 工具：把一次真实任务导出为回放包 JSON；非真实任务返回 null。 */
+  public exportReplay(taskId: string, scenarioId: string): string | null {
+    if (taskId.startsWith('mock-task-') || isReplayTask(taskId)) return null
+    return exportByokReplay(taskId, scenarioId)
+  }
+
+  /**
+   * 取证据文件内容。真实模式读平台回传或本地兜底的产物，回放模式读存档
+   * previews，演示模式即时本地生成，三种模式下"下载凭证"按钮行为一致。
+   */
+  public getArtifactContent(taskId: string, fileName: string): string | null {
+    if (isReplayTask(taskId)) return getReplayArtifact(taskId, fileName)
+    if (taskId.startsWith('mock-task-')) {
+      const stored = mockRequests.get(taskId)
+      if (!stored) return null
+      if (fileName === 'evidence.csv') return buildEvidenceCsv(stored, OFFICIAL_SOURCES)
+      if (fileName === 'analysis-manifest.json') {
+        return buildAnalysisManifest({
           taskId,
-          code: 'INVALID_EVENT',
-          message: '服务器返回了无法识别的进度消息。',
-          retryable: true,
+          vendorTaskId: null,
+          request: stored,
+          sources: OFFICIAL_SOURCES,
+          mode: 'mock',
         })
-        eventSource.close()
       }
+      if (fileName === 'explanation.md') return buildMockExplanationMarkdown(taskId, stored)
+      return null
     }
-    eventSource.onerror = () => {
-      onEvent({
-        type: 'failed',
-        taskId,
-        code: 'SSE_CONNECTION_ERROR',
-        message: '与本项目服务端的实时连接中断，您可以重试。',
-        retryable: true,
-      })
-      eventSource.close()
-    }
-
-    return () => eventSource.close()
+    return getByokArtifact(taskId, fileName)
   }
 
   private async mockStartAnalysis(request: StartAnalysisRequest): Promise<StartAnalysisResponse> {
+    const taskId = `mock-task-${Date.now()}`
+    // 只保留最近几次演示任务，避免长时间停留在页面上时无限增长。
+    while (mockRequests.size >= 5) {
+      const oldest = mockRequests.keys().next().value
+      if (oldest === undefined) break
+      mockRequests.delete(oldest)
+    }
+    mockRequests.set(taskId, request)
     return {
-      taskId: `mock-task-${Date.now()}`,
+      taskId,
       status: 'queued',
       calculation: request.calculation,
     }
@@ -192,11 +241,16 @@ function generateMockInsightText(request: StartAnalysisRequest): string {
   const money = (value: number) => Math.round(value).toLocaleString('zh-CN')
   const rate = (value: number) => `${(value * 100).toFixed(2)}%`
 
+  const payslip = request.incomeInputMode === 'payslip' ? request.payslipSummary : undefined
+  const payslipPrefix = payslip
+    ? `税前工资${payslip.grossIncrease >= 0 ? '增加' : '减少'} ${money(Math.abs(payslip.grossIncrease))} 元，个税与社保公积金等扣缴合计${payslip.deductionChange >= 0 ? '增加' : '减少'} ${money(Math.abs(payslip.deductionChange))} 元（其中养老与公积金变化 ${money(payslip.futureAccountChange)} 元计入你的未来账户积累，不属于消失）。`
+    : ''
+
   if (calculation.raiseIncrease <= 0) {
-    return `你的到手收入没有增加，固定支出和日常生活成本变化会直接影响每月结余。要保持当前生活水平，下一阶段到手月收入至少需要 ${money(calculation.breakEvenIncome)} 元。`
+    return `${payslipPrefix}你的到手收入没有增加，固定支出和日常生活成本变化会直接影响每月结余。要保持当前生活水平，下一阶段到手月收入至少需要 ${money(calculation.breakEvenIncome)} 元。`
   }
 
-  const incomeMessage = `到手收入增加 ${money(calculation.raiseIncrease)} 元，`
+  const incomeMessage = `${payslipPrefix}到手收入增加 ${money(calculation.raiseIncrease)} 元，`
   const housingMessage = calculation.rentIncrease > 0
     ? `其中住房支出增加 ${money(calculation.rentIncrease)} 元。`
     : calculation.rentIncrease < 0
@@ -204,6 +258,44 @@ function generateMockInsightText(request: StartAnalysisRequest): string {
     : '住房支出保持不变。'
 
   return `${incomeMessage}${housingMessage}按 2026 年上半年 CPI 与 2025 年城镇消费结构派生的日常支出基准（${rate(input.otherInflationRate)}）计算，你每月预计${calculation.monthlyRemainderChange >= 0 ? '多' : '少'}剩 ${money(Math.abs(calculation.monthlyRemainderChange))} 元。核心结果以你的输入和本地计算为准。`
+}
+
+/** 演示模式的可下载解读正文，口径与真实模式的 explanation.md 保持一致。 */
+function buildMockExplanationMarkdown(taskId: string, request: StartAnalysisRequest): string {
+  const { input, calculation } = request
+  const money = (value: number) => `${Math.round(value).toLocaleString('zh-CN')} 元`
+  const rate = (value: number) => `${(value * 100).toFixed(2)}%`
+
+  return [
+    '# REAL RAISE 购买力与消费诊断报告',
+    '',
+    `- 任务 ID：${taskId}`,
+    '- 生成方式：本地演示模式（未配置分析平台 API Key）',
+    '- 数据底座：本地确定性算表 + 2026 年上半年官方 CPI',
+    '',
+    '## 结论',
+    '',
+    generateMockInsightText(request),
+    '',
+    '## 关键数字',
+    '',
+    '| 项目 | 数值 | 口径 |',
+    '| --- | --- | --- |',
+    `| 到手收入变化 | ${money(calculation.raiseIncrease)} | 用户输入 |`,
+    `| 住房支出变化 | ${money(calculation.rentIncrease)} | 用户输入 |`,
+    `| 日常支出变化 | ${money(calculation.nextOtherSpend - input.otherSpend)} | CPI 派生估算 |`,
+    `| 每月结余变化 | ${money(calculation.monthlyRemainderChange)} | 本地确定性计算 |`,
+    `| 每年结余变化 | ${money(calculation.annualRemainderChange)} | 本地确定性计算 |`,
+    `| 真实购买力变化 | ${rate(calculation.realPurchasingPowerRate)} | 本地确定性计算 |`,
+    `| 维持原生活需月入 | ${money(calculation.breakEvenIncome)} | 本地确定性计算 |`,
+    '',
+    '## 边界说明',
+    '',
+    '- 所有金额由本地确定性公式计算，模型只负责解释，不修改数字。',
+    '- 演示模式的解读文本由本地模板生成，不代表分析平台的真实输出。',
+    '- 本报告不构成投资、借贷或其他个性化金融建议。',
+    '',
+  ].join('\n')
 }
 
 export function generateMockStructuredInsight(request: StartAnalysisRequest) {
@@ -224,6 +316,19 @@ export function generateMockStructuredInsight(request: StartAnalysisRequest) {
       : `月税后收入预计减少 ${Math.round(Math.abs(raiseIncrease))} 元`,
     sourceRefs: ['用户输入'],
   })
+
+  // Payslip deduction driver (only in payslip mode)
+  if (request.incomeInputMode === 'payslip' && request.payslipSummary) {
+    const slip = request.payslipSummary
+    drivers.push({
+      id: 'deductions',
+      label: '个税与社保公积金扣缴',
+      direction: slip.deductionChange > 0 ? ('negative' as const) : slip.deductionChange < 0 ? ('positive' as const) : ('neutral' as const),
+      monthlyImpact: -slip.deductionChange,
+      explanation: `扣缴合计${slip.deductionChange >= 0 ? '增加' : '减少'} ${Math.round(Math.abs(slip.deductionChange))} 元；其中养老与公积金变化 ${Math.round(slip.futureAccountChange)} 元进入未来保障与账户积累`,
+      sourceRefs: ['用户工资条输入'],
+    })
+  }
 
   // Housing-cost driver
   drivers.push({

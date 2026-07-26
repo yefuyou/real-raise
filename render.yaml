@@ -1,0 +1,16 @@
+# Render 单服务部署：Node 后端同源托管前端 dist/，SSE 零跨域。
+# 用法：Render Dashboard → New → Blueprint → 选择本仓库。
+# 部署后在服务的 Environment 页手工填入 INFINISYNAPSE_API_KEY（sync: false 不入库）。
+services:
+  - type: web
+    name: real-raise
+    runtime: node
+    plan: starter # 免费层空闲会冷启动 30-60 秒，评审期建议 starter 或配保活
+    buildCommand: npm install && npm run build
+    startCommand: node server/realRaiseServer.mjs
+    healthCheckPath: /api/health
+    envVars:
+      - key: INFINISYNAPSE_API_KEY
+        sync: false
+      - key: INFINISYNAPSE_BASE_URL
+        value: https://app.infinisynapse.cn

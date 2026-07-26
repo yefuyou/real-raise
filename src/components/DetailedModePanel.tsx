@@ -186,11 +186,11 @@ export const DetailedModePanel: React.FC<DetailedModePanelProps> = ({
                       id={`cat-cur-${key}`}
                       type="number"
                       min="0"
-                      step="50"
+                      step="0.01"
                       value={item.currentAmount || ''}
                       onChange={(e) => handleCategoryChange(key, 'currentAmount', e.target.value)}
                       placeholder="0"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       aria-label={`${cfg.label} 当前月支出`}
                     />
                     <span className="field-currency">元</span>
@@ -205,8 +205,8 @@ export const DetailedModePanel: React.FC<DetailedModePanelProps> = ({
                     <input
                       id={`cat-cpi-${key}`}
                       type="number"
-                      step="0.1"
-                      value={Number((item.cpiRate * 100).toFixed(1))}
+                      step="0.01"
+                      value={Number((item.cpiRate * 100).toFixed(2))}
                       onChange={(e) => handleCategoryChange(key, 'cpiRate', e.target.value)}
                       aria-label={`${cfg.label} 预估 CPI 涨幅`}
                     />
@@ -223,11 +223,11 @@ export const DetailedModePanel: React.FC<DetailedModePanelProps> = ({
                       id={`cat-next-${key}`}
                       type="number"
                       min="0"
-                      step="50"
+                      step="0.01"
                       value={item.nextAmount || ''}
                       onChange={(e) => handleCategoryChange(key, 'nextAmount', e.target.value)}
                       placeholder="0"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       aria-label={`${cfg.label} 下阶段预估月支出`}
                     />
                     <span className="field-currency">元</span>

@@ -1,0 +1,3070 @@
+{
+  "schemaVersion": "replay.v1",
+  "scenarioId": "take-home-raise-shrinks",
+  "vendorTaskId": "6147a8d1-4bb9-416c-a664-ae54092fcc26",
+  "recordedAt": "2026-07-26T13:00:35.610Z",
+  "signature": "c91f639cf338bd39",
+  "request": {
+    "input": {
+      "currentIncome": 8000,
+      "nextIncome": 8400,
+      "currentRent": 1800,
+      "nextRent": 2200,
+      "otherSpend": 3500,
+      "otherInflationRate": 0.014010621444516454
+    },
+    "calculation": {
+      "currentTotalSpend": 5300,
+      "nextOtherSpend": 3549.0371750558074,
+      "nextTotalSpend": 5749.037175055808,
+      "currentRemainder": 2700,
+      "nextRemainder": 2650.962824944192,
+      "monthlyRemainderChange": -49.03717505580789,
+      "annualRemainderChange": -588.4461006696947,
+      "incomeGrowthRate": 0.050000000000000044,
+      "totalSpendGrowthRate": 0.08472399529354857,
+      "realPurchasingPowerRate": -0.032011825537381466,
+      "rentIncrease": 400,
+      "raiseIncrease": 400,
+      "raiseConsumedByRentRate": 1,
+      "breakEvenIncome": 8449.037175055808
+    },
+    "locale": "zh-CN",
+    "includeInsight": true,
+    "inputMode": "basic",
+    "incomeInputMode": "net",
+    "simulatedError": false
+  },
+  "events": [
+    {
+      "atMs": 3,
+      "event": {
+        "type": "started",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3"
+      }
+    },
+    {
+      "atMs": 525,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 525,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析任务已就绪",
+        "message": "数据源连接已建立，正在等待分析执行。",
+        "percent": 10
+      }
+    },
+    {
+      "atMs": 559,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 787,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 4715,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "我将",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 4761,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4791,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4791,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4868,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4869,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4869,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4994,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4994,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，然后生成",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 4994,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，然后生成所需的",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5069,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，然后生成所需的文件。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5069,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，然后生成所需的文件。 让我开始",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5087,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，然后生成所需的文件。 让我开始创建",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5165,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，然后生成所需的文件。 让我开始创建计划：",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5366,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "我将完成这个任务。首先，我需要创建一个详细的分析，然后生成所需的文件。 让我开始创建计划：",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5366,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 5366,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5366,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5443,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5443,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5443,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5504,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5504,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5520,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5581,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5581,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5581,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5658,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5658,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5658,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5751,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5751,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5751,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5798,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5798,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5798,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5875,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5875,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5875,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5952,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5952,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 5952,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6090,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6090,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6090,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6090,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6152,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6168,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6168,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6293,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6293,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6293,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6339,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6339,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6339,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6434,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6434,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6434,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6479,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6479,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6479,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6556,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6556,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6556,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6695,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6696,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6696,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6711,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6818,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6819,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6819,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6819,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6913,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6913,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6913,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 6929,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7021,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7021,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7021,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7021,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7086,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7086,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7086,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7162,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7162,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7162,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7224,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7240,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7240,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7309,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7309,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7313,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7377,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7377,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7377,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7515,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7515,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7515,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7562,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7562,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7562,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7639,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7639,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7639,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7718,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7718,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7718,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7779,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7779,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7779,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7857,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7857,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7857,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7918,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7918,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7918,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7980,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7995,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 7995,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8058,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8059,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8059,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8135,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8135,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8135,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8196,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8196,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8196,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8272,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8272,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8287,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8379,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8379,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8395,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8458,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8458,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8458,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8535,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8535,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8535,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8614,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8614,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8614,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8678,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8678,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8693,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8755,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8755,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8755,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8818,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8818,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8836,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8895,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8895,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8896,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8973,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8973,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 8973,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9051,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9051,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9051,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9143,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9143,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9143,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9220,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9220,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9220,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9283,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9283,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9298,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9406,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9407,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9466,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9466,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9466,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9466,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9515,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9515,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9515,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9577,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9577,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9577,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9655,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9655,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9655,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9765,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9765,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9765,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9765,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9826,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9826,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9841,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9968,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9968,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 9968,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 10073,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 10074,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 10091,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 10307,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 10506,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "正在整理分析报告和证据。",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 17738,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "整理分析产物",
+        "message": "现在我",
+        "percent": 75
+      }
+    },
+    {
+      "atMs": 17765,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 17795,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 17922,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 17922,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 17963,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18014,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18014,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18014,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18064,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18064,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18064,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18154,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18154,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18169,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18200,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18215,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑：",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18231,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18276,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18277,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：**",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18292,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** -",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18352,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18353,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：800",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18382,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18428,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 -",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18428,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18428,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18506,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18507,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18507,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18568,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 -",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18584,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18590,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：180",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18644,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18645,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 -",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18660,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18769,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18769,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18769,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18800,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18831,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 -",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18831,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18831,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18893,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：350",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18908,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18909,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18964,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 -",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 18987,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19002,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19080,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19080,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.401062",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19080,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.401062144451",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19172,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19172,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19172,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19265,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19265,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19281,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19327,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1.",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19327,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19343,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 =",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19451,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19451,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19451,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 +",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19528,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19532,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出350",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19543,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 =",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19588,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 530",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19588,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 5300元",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19588,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 5300元 2",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19698,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 5300元 2.",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19714,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 5300元 2. 当前结",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19714,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 5300元 2. 当前结余 =",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19714,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 5300元 2. 当前结余 =",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19775,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "现在我进入第一阶段：分析数据和计算逻辑。让我仔细分析用户提供的数据和本地计算结果。 首先，我需要理解数据的结构和计算逻辑： **用户输入：** - 当前收入：8000元 - 涨薪后收入：8400元 - 当前房租：1800元 - 涨薪后房租：2200元 - 其他日常支出：3500元 - 其他通胀率：1.4010621444516454% **本地计算结果（权威）：** 1. 当前总支出 = 房租1800 + 其他支出3500 = 5300元 2. 当前结余 = 收入800",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19775,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19775,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19838,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19869,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19869,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19914,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19914,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 19914,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20022,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20022,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20022,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20114,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20114,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20114,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20165,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20177,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20177,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20302,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20302,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    },
+    {
+      "atMs": 20302,
+      "event": {
+        "type": "progress",
+        "taskId": "be75b36d-863c-48ca-84a3-1980bcf270c3",
+        "stage": "分析进行中",
+        "message": "分析 Agent 正在处理数据。",
+        "percent": 55
+      }
+    }
+  ],
+  "completed": {
+    "insight": "# 涨薪到手之前的消失分析\n\n## A. 收入、支出与可支配结余解释\n\n您的涨薪看似增加了400元，但房租也同步上涨了400元，完全抵消了收入增长。同时，其他日常支出受到通货膨胀影响，每月增加了约49元。结果是：尽管收入增长了5%，但总支出增长更快（8.5%），导致您每月可支配结余实际减少约49元，一年下来累计减少588元。\n\n涨薪被房租100%消耗，意味着表面上工资增加了，但租房成本的上涨完全吃掉了这部分增长。加上日常消费的价格上涨，您的实际购买力反而下降了约3.2%。\n\n要维持现有的生活水平和结余，您的收入需要达到8449元，比涨薪后的8400元还要多49元。这表明当前的涨薪幅度不足以应对您的支出增长。\n\n## B. 信息分类说明\n\n### 1. 用户输入信息\n- 当前到手收入：8000元\n- 涨薪后到手收入：8400元  \n- 当前房租：1800元\n- 涨薪后房租：2200元\n- 其他日常支出：3500元\n- 其他支出通胀率：1.401%\n\n### 2. 本地确定性计算\n- 当前总支出：5300元（房租1800 + 日常3500）\n- 涨薪后日常支出：3549.04元（考虑通胀）\n- 涨薪后总支出：5749.04元\n- 当前结余：2700元\n- 涨薪后结余：2650.96元\n- 每月结余变化：-49.04元\n- 年化结余变化：-588.45元\n\n### 3. 官方观察值\n- 其他支出通胀率1.401%参考国家统计局公布的2026年上半年居民消费价格数据\n- 未启用城市级别数据，已回退使用全国基准通胀率\n\n### 4. 派生估算\n- 收入增长率：5%\n- 总支出增长率：8.47%\n- 实际购买力变化率：-3.20%\n- 涨薪被房租消耗比例：100%\n- 维持结余不变所需收入：8449.04元\n\n## C. 情景解释（不改变本地数字）\n\n### 情景1：收支同步增长，结余被侵蚀\n您的收入和支出都在增长，但支出增速更快。就像跑步机一样，您跑得再快（收入增加），跑步机转得更快（支出增加），您实际在原地踏步甚至后退。\n\n### 情景2：房租吃掉全部涨薪\n涨薪的每一分钱都流向了房东口袋，您的工资条数字变大了，但银行账户里的可支配部分没有增加。其他消费品的价格上涨进一步挤压了您的钱包空间。\n\n### 情景3：名义增长与实际缩水\n虽然工资数字增加了400元，但购买力反而下降了。好比用同样的钱，去年能买10斤苹果，今年只能买9.7斤。这就是通货膨胀和生活成本上升对普通上班族的实际影响。\n\n## D. 简洁总结\n\n对普通城市上班族来说：涨薪400元，房租涨400元，涨薪被房租完全吃掉。加上日常消费涨价，每月可支配结余反而少了约50元。表面工资增长不代表实际生活改善，支出增长跑赢了收入增长。",
+    "sources": [
+      {
+        "name": "国家统计局：2026 年上半年居民消费价格主要数据",
+        "year": 2026,
+        "scope": "全国居民消费价格八大类 1—6 月同比涨跌幅",
+        "url": "https://www.stats.gov.cn/sj/zxfbhjd/202607/t20260709_1964084.html"
+      },
+      {
+        "name": "国家统计局：2025 年居民收入和消费支出情况",
+        "year": 2025,
+        "scope": "全国及城镇居民收入、消费支出与消费结构",
+        "url": "https://www.stats.gov.cn/sj/zxfb/202601/t20260119_1962321.html"
+      }
+    ],
+    "workspace": {
+      "artifacts": [
+        "analysis-manifest.json",
+        "使用英文列名创建证据数据的临时视图_stats.md",
+        "explanation.md",
+        "Save.md",
+        "evidence.csv"
+      ],
+      "previews": {
+        "analysis-manifest.json": "{\n  \"analysis_summary\": {\n    \"title\": \"涨薪到手之前的消失分析\",\n    \"analysis_date\": \"2026-07-26\",\n    \"user_scenario\": \"月薪8000元涨至8400元，房租从1800元涨至2200元\",\n    \"key_finding\": \"涨薪400元完全被房租上涨400元消耗，加上通胀影响，每月可支配结余减少约49元\",\n    \"real_purchasing_power_change\": \"-3.20%\"\n  },\n  \"data_sources\": {\n    \"user_input\": {\n      \"items\": 6,\n      \"description\": \"用户直接提供的收入和支出数据\"\n    },\n    \"local_calculations\": {\n      \"items\": 15,\n      \"description\": \"基于用户输入的确定性计算结果\"\n    },\n    \"official_references\": [\n      {\n        \"name\": \"国家统计局2026年上半年居民消费价格数据\",\n        \"url\": \"https://www.stats.gov.cn/sj/zxfbhjd/202607/t20260709_1964084.html\",\n        \"purpose\": \"提供通胀率参考基准\"\n      },\n      {\n        \"name\": \"国家统计局2025年居民收入和消费支出情况\",\n        \"url\": \"https://www.stats.gov.cn/sj/zxfb/202601/t20260119_1962321.html\",\n        \"purpose\": \"提供收入消费基准参考\"\n      }\n    ]\n  },\n  \"critical_calculations\": {\n    \"current_total_spend\": 5300,\n    \"next_total_spend\": 5749.037175055808,\n    \"current_remainder\": 2700,\n    \"next_remainder\": 2650.962824944192,\n    \"monthly_remainder_change\": -49.03717505580789,\n    \"annual_remainder_change\": -588.4461006696947,\n    \"income_growth_rate\": 0.050000000000000044,\n    \"total_spend_growth_rate\": 0.08472399529354857,\n    \"real_purchasing_power_rate\": -0.032011825537381466,\n    \"raise_consumed_by_rent_rate\": 1,\n    \"break_even_income\": 8449.037175055808\n  },\n  \"scenario_interpretations\": [\n    {\n      \"id\": 1,\n      \"title\": \"收支同步增长，结余被侵蚀\",\n      \"description\": \"收入和支出都在增长，但支出增速更快。就像跑步机一样，您跑得再快（收入增加），跑步机转得更快（支出增加），您实际在原地踏步甚至后退。\"\n    },\n    {\n      \"id\": 2,\n      \"title\": \"房租吃掉全部涨薪\",\n      \"description\": \"涨薪的每一分钱都流向了房东口袋，您的工资条数字变大了，但银行账户里的可支配部分没有增加。其他消费品的价格上涨进一步挤压了您的钱包空间。\"\n    },\n    {\n      \"id\": 3,\n      \"title\": \"名义增长与实际缩水\",\n      \"description\": \"虽然工资数字增加了400元，但购买力反而下降了。好比用同样的钱，去年能买10斤苹果，今年只能买9.7斤。这就是通货膨胀和生活成本上升对普通上班族的实际影响。\"\n    }\n  ],\n  \"methodology\": {\n    \"boundary_rules\": [\n      \"不重新计算、覆盖或纠正本地程序提供的任何数字\",\n      \"用户输入的到手收入、住房和日常支出优先于任何宏观平均\",\n      \"城市数据缺失时明确说明'已回退全国基准'，不编造城市值\",\n      \"不提供投资、借贷、辞职等个性化金融决策建议\"\n    ],\n    \"calculation_approach\": \"基于用户输入的直接数学计算，考虑通胀影响的线性扩展\",\n    \"information_classification\": [\n      \"用户输入信息：当前收入、涨薪后收入、当前房租、涨薪后房租、其他支出、通胀率\",\n      \"本地确定性计算：基于用户输入的计算结果\",\n      \"官方观察值：通胀数据和基准参考\",\n      \"派生估算：增长率、消耗比例等派生指标\"\n    ]\n  },\n  \"output_files\": [\n    {\n      \"name\": \"explanation.md\",\n      \"purpose\": \"完整的分析解释文档，包含四部分内容：收入支出解释、信息分类、情景解释、简洁总结\",\n      \"status\": \"generated\"\n    },\n    {\n      \"name\": \"evidence.csv\",\n      \"purpose\": \"所有数据和计算结果的证据表格\",\n      \"status\": \"evidence_data临时视图已创建，但由于订阅数据源限制无法保存为CSV文件\"\n    },\n    {\n      \"name\": \"analysis-manifest.json\",\n      \"purpose\": \"分析元数据和清单文件\",\n      \"status\": \"generated\"\n    }\n  ]\n}",
+        "使用英文列名创建证据数据的临时视图_stats.md": "# Column Statistics for view 'evidence_data'\n\n## Data source\nTotal rows: 26\nTotal columns: 5\n\n## All Column Statistics (5 columns)\n\n  - category (string): count=26, nulls=0, distinct=4\n  - item (string): count=26, nulls=0, distinct=26\n  - value (decimal(28,18)): count=24, nulls=2, mean=2187.07, std=2950.32, min=-588.45, max=8449.04\n  - unit (string): count=20, nulls=6, distinct=2\n  - description (string): count=26, nulls=0, distinct=26",
+        "explanation.md": "# 涨薪到手之前的消失分析\n\n## A. 收入、支出与可支配结余解释\n\n您的涨薪看似增加了400元，但房租也同步上涨了400元，完全抵消了收入增长。同时，其他日常支出受到通货膨胀影响，每月增加了约49元。结果是：尽管收入增长了5%，但总支出增长更快（8.5%），导致您每月可支配结余实际减少约49元，一年下来累计减少588元。\n\n涨薪被房租100%消耗，意味着表面上工资增加了，但租房成本的上涨完全吃掉了这部分增长。加上日常消费的价格上涨，您的实际购买力反而下降了约3.2%。\n\n要维持现有的生活水平和结余，您的收入需要达到8449元，比涨薪后的8400元还要多49元。这表明当前的涨薪幅度不足以应对您的支出增长。\n\n## B. 信息分类说明\n\n### 1. 用户输入信息\n- 当前到手收入：8000元\n- 涨薪后到手收入：8400元  \n- 当前房租：1800元\n- 涨薪后房租：2200元\n- 其他日常支出：3500元\n- 其他支出通胀率：1.401%\n\n### 2. 本地确定性计算\n- 当前总支出：5300元（房租1800 + 日常3500）\n- 涨薪后日常支出：3549.04元（考虑通胀）\n- 涨薪后总支出：5749.04元\n- 当前结余：2700元\n- 涨薪后结余：2650.96元\n- 每月结余变化：-49.04元\n- 年化结余变化：-588.45元\n\n### 3. 官方观察值\n- 其他支出通胀率1.401%参考国家统计局公布的2026年上半年居民消费价格数据\n- 未启用城市级别数据，已回退使用全国基准通胀率\n\n### 4. 派生估算\n- 收入增长率：5%\n- 总支出增长率：8.47%\n- 实际购买力变化率：-3.20%\n- 涨薪被房租消耗比例：100%\n- 维持结余不变所需收入：8449.04元\n\n## C. 情景解释（不改变本地数字）\n\n### 情景1：收支同步增长，结余被侵蚀\n您的收入和支出都在增长，但支出增速更快。就像跑步机一样，您跑得再快（收入增加），跑步机转得更快（支出增加），您实际在原地踏步甚至后退。\n\n### 情景2：房租吃掉全部涨薪\n涨薪的每一分钱都流向了房东口袋，您的工资条数字变大了，但银行账户里的可支配部分没有增加。其他消费品的价格上涨进一步挤压了您的钱包空间。\n\n### 情景3：名义增长与实际缩水\n虽然工资数字增加了400元，但购买力反而下降了。好比用同样的钱，去年能买10斤苹果，今年只能买9.7斤。这就是通货膨胀和生活成本上升对普通上班族的实际影响。\n\n## D. 简洁总结\n\n对普通城市上班族来说：涨薪400元，房租涨400元，涨薪被房租完全吃掉。加上日常消费涨价，每月可支配结余反而少了约50元。表面工资增长不代表实际生活改善，支出增长跑赢了收入增长。",
+        "Save.md": "---\nLoad Infinity SQL tool Save Documentation:\n<description>Export Infinity Session tables/views to external storage (databases, files). Use this tool when users need to: (1) Save or export query results to a database (JDBC, Elasticsearch, MongoDB); (2) Export data to files (Excel, CSV, Parquet, ORC, JSON, Delta Lake); (3) Overwrite or append data to an existing target. Common scenarios: \"save data to mysql\", \"export to excel\", \"append results to postgres table\", \"write data to elasticsearch\", \"export as csv file\".</description>\n<documentation>\n# SAVE Mode Reference\n\nThe SAVE statement exports Infinity Session tables/views to external storage.\n\n---\n\n## Save Modes\n\n| Mode | Behavior |\n|------|----------|\n| overwrite | Replaces all existing data in the target table/file. Use when you want a fresh copy. |\n| append | Adds new data to the existing target without deleting old data. Use for incremental updates. |\n\n---\n\n## Syntax\n\n```\nSAVE [overwrite|append] <src_table> AS <storage_type>.`<dest_path>`;\n```\n\n- `src_table`: The source table or temporary view name in the current Infinity Session.\n- `storage_type`: One of `jdbc`, `excel`, `csv`, `parquet`, `orc`, `json`, `delta`, `es`, `mongodb`.\n- `dest_path`: The destination path, format depends on the storage type (see below).\n\n---\n\n## Path Formats by Storage Type\n\n### JDBC Databases (mysql, postgres, clickhouse, etc.)\n\nPath format: `database_name.table_name`\n\n```sql\n-- Overwrite a JDBC table\nsave overwrite src_table as jdbc.`dest_db.dest_table`;\n\n-- Append to a JDBC table\nsave append src_table as jdbc.`dest_db.dest_table`;\n```\n\n### File-based Storage (excel, csv, parquet, orc, json)\n\nPath format: `database_name.file_name`\n- `file_name` must match `[a-zA-Z0-9_]+` (only letters, numbers, and underscores).\n\n```sql\n-- Save as Excel file\nsave overwrite src_table as excel.`dest_db.file_name`;\n\n-- Save as CSV file\nsave overwrite src_table as csv.`dest_db.file_name`;\n\n-- Save as Parquet file\nsave overwrite src_table as parquet.`dest_db.file_name`;\n\n-- Save as ORC file\nsave overwrite src_table as orc.`dest_db.file_name`;\n\n-- Save as JSON file\nsave overwrite src_table as json.`dest_db.file_name`;\n```\n\n### Delta Lake\n\nPath format: `database_name.table_name`\n\n```sql\nsave overwrite src_table as delta.`dest_db.table_name`;\nsave append src_table as delta.`dest_db.table_name`;\n```\n\n### Elasticsearch\n\nPath format: `database_name/index_name` (use `/` as separator)\n\n```sql\nsave overwrite src_table as es.`dest_db/dest_index`;\nsave append src_table as es.`dest_db/dest_index`;\n```\n\n### MongoDB\n\nPath format: `database_name/collection_name` (use `/` as separator)\n\n```sql\nsave overwrite src_table as mongodb.`dest_db/dest_collection`;\nsave append src_table as mongodb.`dest_db/dest_collection`;\n```\n\n---\n\n## Important Rules\n\n1. **Single statement only**: Each SAVE statement is executed individually. To save to multiple destinations, use separate calls.\n2. **Source must exist**: The `src_table` must be an existing registered table or a temporary view created in the current Infinity Session.\n3. **File name constraints**: For file-based storage, file names must contain only letters (a-z, A-Z), numbers (0-9), and underscores (_). No spaces, special characters, or non-ASCII characters allowed.\n4. **Default file database**: When the user asks to save/export data as a file without specifying a target file database, use `workspace_files` as the default destination.\n\n---\n\n## Recommended Workflow for AI\n\nWhen helping users save/export data, follow this approach:\n\n1. **Confirm source data** - Ensure the source table or view exists in the Infinity Session. If needed, query and verify the data first.\n\n2. **Determine destination** - Identify the target storage type and database/path. If the user doesn't specify a file database, use `workspace_files` as the default destination.\n\n3. **Choose save mode** - Use `overwrite` for fresh exports or `append` for incremental updates. If unclear, ask the user.\n\n4. **Verify success** - After saving, confirm the operation completed successfully.\n</documentation>\n",
+        "evidence.csv": "item,value,source_type,source_detail\ncurrent_income,8000,user_input,现在的月到手收入\nnext_income,8400,user_input,下一阶段预计月到手收入\ncurrent_rent,1800,user_input,现在的月住房支出\nnext_rent,2200,user_input,下一阶段预计月住房支出\nother_spend,3500,user_input,现在的月日常生活支出\nother_inflation_rate,0.014010621444516454,derived_estimate,2026H1 CPI 与 2025 城镇消费结构派生\nincome_growth_rate,0.050000000000000044,local_calculation,本项目确定性计算\ntotal_spend_growth_rate,0.08472399529354857,local_calculation,本项目确定性计算\nreal_purchasing_power_rate,-0.032011825537381466,local_calculation,本项目确定性计算\nmonthly_remainder_change,-49.03717505580789,local_calculation,本项目确定性计算\nannual_remainder_change,-588.4461006696947,local_calculation,本项目确定性计算\nbreak_even_income,8449.037175055808,local_calculation,维持当前生活水平所需月到手收入\n国家统计局：2026 年上半年居民消费价格主要数据,2026,official_source,全国居民消费价格八大类 1—6 月同比涨跌幅｜https://www.stats.gov.cn/sj/zxfbhjd/202607/t20260709_1964084.html\n国家统计局：2025 年居民收入和消费支出情况,2025,official_source,全国及城镇居民收入、消费支出与消费结构｜https://www.stats.gov.cn/sj/zxfb/202601/t20260119_1962321.html"
+      }
+    }
+  }
+}

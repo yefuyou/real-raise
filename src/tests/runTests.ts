@@ -30,6 +30,19 @@ import { verifiedDataSources } from '../data/dataContract'
 import { RealRaiseApiClient, generateMockStructuredInsight } from '../api/apiClient'
 import type { AgentTaskStatus, AgentTaskEvent, StartAnalysisRequest } from '../api/realRaiseContract'
 import { resolveCityBenchmark, resolveCityBenchmarkSet } from '../data/cityBenchmarks'
+import { DEMO_SCENARIOS } from '../data/demoScenarios'
+import { requestSignature } from '../api/requestSignature'
+import {
+  DEFAULT_ESTIMATE_RATIOS,
+  EXAMPLE_PAYSLIP,
+  computePayslip,
+  deriveEffectiveRates,
+  estimateDeductions,
+  estimateMonthlyTax,
+  estimateNextFromCurrent,
+  netIncome,
+  type PayslipPeriodInput,
+} from '../domain/salarySlip'
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -369,6 +382,231 @@ async function main() {
     const categoryRecs = shanghaiSet.records.filter((r) => r.category !== 'overall')
     assert(categoryRecs.every((r) => r.usedFallback === true), '上海 2026H1 缺失的分类必须诚实标记为回退')
     assert(shanghaiSet.records.every((r) => r.record?.period === '2026H1'), '上海 2026H1 解析结果不得将 202606 月度数据混入')
+  })
+
+  // --- 测试组 8: 工资条模式确定性计算 (salarySlip) ---
+  // 示例工资条自 PAYSLIP_UX_SPEC 起由估算引擎按 10000 → 11000 生成，不再是手写魔法数字。
+  await runTest('8.1 示例工资条：到手 = 税前 − 扣缴合计，两期精确对齐', () => {
+    const summary = computePayslip(EXAMPLE_PAYSLIP)
+    assert(summary.currentDeductionTotal === 2333, `现在扣缴合计应为 2333，实际 ${summary.currentDeductionTotal}`)
+    assert(summary.currentNet === 7667, `现在到手应为 7667，实际 ${summary.currentNet}`)
+    assert(summary.nextDeductionTotal === 2618, `下一阶段扣缴合计应为 2618，实际 ${summary.nextDeductionTotal}`)
+    assert(summary.nextNet === 8382, `下一阶段到手应为 8382，实际 ${summary.nextNet}`)
+    assert(summary.grossIncrease === 1000, '税前增加应为 1000')
+    assert(summary.deductionChange === 285, `扣缴合计变化应为 285，实际 ${summary.deductionChange}`)
+    assert(summary.netIncrease === 715, `到手增加应为 715，实际 ${summary.netIncrease}`)
+    assert(summary.taxChange === 60, `个税变化应为 60，实际 ${summary.taxChange}`)
+    assert(summary.socialAndFundChange === 225, `社保公积金变化应为 225，实际 ${summary.socialAndFundChange}`)
+    assert(summary.futureAccountChange === 200, '养老+公积金未来账户变化应为 200')
+    assert(
+      summary.netIncrease === summary.grossIncrease - summary.deductionChange,
+      '恒等式必须成立：到手增加 = 税前增加 − 扣缴合计变化'
+    )
+    assert(summary.hasNegativeNet === false, '示例工资条不应出现负到手')
+  })
+
+  await runTest('8.2 留存率：税前每涨 1 元到手 0.715；税前无增长为 null', () => {
+    const summary = computePayslip(EXAMPLE_PAYSLIP)
+    assert(summary.raiseKeptRate !== null && Math.abs(summary.raiseKeptRate - 0.715) < 1e-9, '留存率应精确为 0.715')
+    const flat = computePayslip({ current: EXAMPLE_PAYSLIP.current, next: { ...EXAMPLE_PAYSLIP.current } })
+    assert(flat.raiseKeptRate === null, '税前无增长时留存率必须为 null，不得除以零')
+  })
+
+  await runTest('8.3 扣缴合计超过税前 → hasNegativeNet 诚实标记，不抛异常、不截断', () => {
+    const broken = computePayslip({
+      current: { gross: 1000, incomeTax: 2000, pension: 0, medicalIns: 0, unemploymentIns: 0, housingFund: 0, otherDeduction: 0 },
+      next: EXAMPLE_PAYSLIP.next,
+    })
+    assert(broken.hasNegativeNet === true, '负到手必须被标记')
+    assert(broken.currentNet === -1000, '负到手金额必须如实保留（-1000），不得静默截断为 0')
+  })
+
+  await runTest('8.4 工资条摘要注入 Mock 结构化解读：扣缴驱动因素与未来账户口径', () => {
+    const payload: StartAnalysisRequest = {
+      ...samplePayload,
+      incomeInputMode: 'payslip',
+      payslipSummary: computePayslip(EXAMPLE_PAYSLIP),
+    }
+    const struct = generateMockStructuredInsight(payload)
+    const deductionDriver = struct.drivers.find((d) => d.id === 'deductions')
+    assert(deductionDriver !== undefined, '工资条模式必须输出扣缴驱动因素')
+    assert(deductionDriver!.monthlyImpact === -285, `扣缴驱动因素月度影响应为 -285，实际 ${deductionDriver!.monthlyImpact}`)
+    assert(struct.summary.includes('未来账户'), '解读文本必须包含"未来账户"口径，不把养老公积金称为消失')
+    const netPayload: StartAnalysisRequest = { ...samplePayload, incomeInputMode: 'net' }
+    const netStruct = generateMockStructuredInsight(netPayload)
+    assert(netStruct.drivers.every((d) => d.id !== 'deductions'), '到手模式不得虚构扣缴驱动因素')
+  })
+
+  // --- 测试组 9: 工资条估算引擎 (docs/PAYSLIP_UX_SPEC.md §四) ---
+  await runTest('9.1 个税月度预扣公式：零税边界、3000 档界、跨档连续性、专项附加扣除', () => {
+    assert(estimateMonthlyTax(5000, 0) === 0, 'taxable ≤ 0 时个税必须为 0')
+    assert(estimateMonthlyTax(3000, 0) === 0, '税前低于起征点时个税为 0，不得出现负数')
+    // taxable 恰好 3000 → 仍在 3% 档：3000 × 3% = 90
+    assert(estimateMonthlyTax(8000, 0) === 90, `taxable 3000 应为 90，实际 ${estimateMonthlyTax(8000, 0)}`)
+    // 12000 档界：12000×10%−210 = 990；越界一元后按 20% 档仍连续
+    assert(estimateMonthlyTax(17000, 0) === 990, `taxable 12000 应为 990，实际 ${estimateMonthlyTax(17000, 0)}`)
+    const atEdge = estimateMonthlyTax(17000, 0)
+    const pastEdge = estimateMonthlyTax(17100, 0)
+    assert(pastEdge > atEdge && pastEdge - atEdge < 40, `跨 12000 档界必须连续，实际跳变 ${pastEdge - atEdge}`)
+    // 25000 档界：25000×20%−1410 = 3590
+    assert(estimateMonthlyTax(30000, 0) === 3590, `taxable 25000 应为 3590，实际 ${estimateMonthlyTax(30000, 0)}`)
+    // 专项附加扣除直接压低应纳税所得额
+    assert(estimateMonthlyTax(8000, 0, 3000) === 0, '专项附加扣除足够大时个税应降到 0')
+    assert(estimateMonthlyTax(10000, 0, 2000) === 90, `含 2000 专项附加时应为 90，实际 ${estimateMonthlyTax(10000, 0, 2000)}`)
+  })
+
+  await runTest('9.2 通用比例估算自洽：税前 10000 → 到手 7667', () => {
+    const est = estimateDeductions(10000)
+    assert(est.pension === 800, `养老应为 800，实际 ${est.pension}`)
+    assert(est.medicalIns === 200, `医疗应为 200，实际 ${est.medicalIns}`)
+    assert(est.unemploymentIns === 50, `失业应为 50，实际 ${est.unemploymentIns}`)
+    assert(est.housingFund === 1200, `公积金应为 1200，实际 ${est.housingFund}`)
+    // taxable = 10000 − 5000 − 2250 = 2750 → 2750 × 3% = 82.5 → 四舍五入 83
+    assert(est.incomeTax === 83, `个税应为 83，实际 ${est.incomeTax}`)
+    assert(netIncome(est) === 7667, `到手应为 7667，实际 ${netIncome(est)}`)
+    const lowFund = estimateDeductions(10000, { ...DEFAULT_ESTIMATE_RATIOS, housingFund: 0.05 })
+    assert(lowFund.housingFund === 500, '公积金比例可调：5% 档应为 500')
+    assert(lowFund.incomeTax > est.incomeTax, '公积金缴得少 → 应纳税所得额变高 → 个税更高')
+  })
+
+  await runTest('9.3 按当前实际比例推算：零城市假设，恒等式仍成立', () => {
+    // 用一组非默认比例的"真实"工资条，确认推算走的是用户自己的费率
+    const current: PayslipPeriodInput = {
+      gross: 12000, incomeTax: 300, pension: 960, medicalIns: 240,
+      unemploymentIns: 60, housingFund: 840, otherDeduction: 100,
+    }
+    const rates = deriveEffectiveRates(current)
+    assert(rates !== null, '当前期税前 > 0 时必须能反推费率')
+    assert(Math.abs(rates!.housingFund - 0.07) < 1e-9, `公积金实际费率应为 7%，实际 ${rates!.housingFund}`)
+    const next = estimateNextFromCurrent(current, 15000)
+    assert(next !== null, '有效当前期应能推算下一期')
+    assert(next!.housingFund === 1050, `15000 × 7% 应为 1050，实际 ${next!.housingFund}`)
+    assert(next!.pension === 1200, `15000 × 8% 应为 1200，实际 ${next!.pension}`)
+    assert(next!.otherDeduction === 100, '其他扣缴应沿用当前期金额')
+    // 个税是累进的，必须重算而不是按比例缩放
+    const scaled = current.incomeTax * (15000 / 12000)
+    assert(next!.incomeTax !== Math.round(scaled), '个税不得按比例缩放，必须用月度公式重算')
+    const summary = computePayslip({ current, next: next! })
+    assert(
+      summary.netIncrease === summary.grossIncrease - summary.deductionChange,
+      '推算路径下恒等式必须成立：到手增加 = 税前增加 − 扣缴合计变化'
+    )
+  })
+
+  await runTest('9.4 用户覆盖优先：估算只预填输入框，手改值即事实源', () => {
+    const est = estimateDeductions(10000)
+    const overridden: PayslipPeriodInput = { ...est, housingFund: 300 }
+    assert(netIncome(overridden) === netIncome(est) + 900, '手改公积金后到手必须按手改值重算')
+    const summary = computePayslip({ current: overridden, next: overridden })
+    assert(
+      summary.currentDeductionTotal === 83 + 800 + 200 + 50 + 300,
+      `扣缴合计必须用手改后的值，实际 ${summary.currentDeductionTotal}`
+    )
+    assert(summary.netIncrease === 0, '两期相同则到手变化为 0')
+  })
+
+  await runTest('9.5 当前期税前为 0：反推返回 null，推算不产出假数据', () => {
+    const empty: PayslipPeriodInput = {
+      gross: 0, incomeTax: 0, pension: 0, medicalIns: 0, unemploymentIns: 0, housingFund: 0, otherDeduction: 0,
+    }
+    assert(deriveEffectiveRates(empty) === null, '税前为 0 时必须返回 null，不得除以零')
+    assert(estimateNextFromCurrent(empty, 11000) === null, '无有效当前期时不得凭空推算下一期')
+    const negative: PayslipPeriodInput = { ...empty, gross: -100 }
+    assert(deriveEffectiveRates(negative) === null, '税前为负时同样返回 null')
+  })
+
+  await runTest('9.6 所有金额输入允许非整十金额与分位精度', () => {
+    const files = [
+      path.join(process.cwd(), 'src', 'App.tsx'),
+      path.join(process.cwd(), 'src', 'components', 'DetailedModePanel.tsx'),
+      path.join(process.cwd(), 'src', 'components', 'PayslipPanel.tsx'),
+    ]
+    const source = files.map((file: string) => fs.readFileSync(file, 'utf8')).join('\n')
+    assert(!/step="(?:10|50|100)"/.test(source), '金额输入不得用 10/50/100 作为 HTML 合法性门槛')
+    assert(source.includes('step="0.01"'), '金额输入应允许至少 0.01 元精度')
+    assert(!source.includes('Math.round(summary.currentNet)'), '工资条到手金额写回主计算链路时不得丢失分位精度')
+  })
+
+  // --- 测试组 10: 真实任务回放包 ---
+  const replayDirectory = path.join(process.cwd(), 'public', 'replays')
+  const replayScenarioIds = [
+    ...DEMO_SCENARIOS.map((scenario) => scenario.id),
+    'payslip-raise-and-fixed-costs',
+  ]
+
+  await runTest('10.1 回放清单：三个预设与工资条案例全部登记且签名唯一', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(replayDirectory, 'manifest.json'), 'utf8'))
+    assert(manifest.schemaVersion === 'replay-manifest.v1', '回放清单版本必须为 replay-manifest.v1')
+    assert(manifest.replays.length === replayScenarioIds.length, `应登记 ${replayScenarioIds.length} 个真实回放`)
+    assert(new Set(manifest.replays.map((item: any) => item.signature)).size === manifest.replays.length, '回放签名不得重复')
+  })
+
+  await runTest('10.2 回放包：签名、真实任务元数据与三份核心产物完整', () => {
+    for (const scenarioId of replayScenarioIds) {
+      const fileName = `${scenarioId}.json`
+      const replay = JSON.parse(fs.readFileSync(path.join(replayDirectory, fileName), 'utf8'))
+      const previews = replay.completed?.workspace?.previews ?? {}
+      assert(replay.schemaVersion === 'replay.v1', `${fileName} 版本必须为 replay.v1`)
+      assert(replay.scenarioId === scenarioId, `${fileName} 的 scenarioId 必须与文件名一致`)
+      assert(typeof replay.vendorTaskId === 'string' && replay.vendorTaskId.length > 0, `${fileName} 必须保留真实任务 ID`)
+      assert(requestSignature(replay.request) === replay.signature, `${fileName} 的请求签名必须可重算验证`)
+      assert(Array.isArray(replay.events) && replay.events.length > 0, `${fileName} 必须包含真实事件流`)
+      assert(typeof previews['explanation.md'] === 'string' && previews['explanation.md'].length > 500, `${fileName} 缺少完整 explanation.md`)
+      assert(typeof previews['evidence.csv'] === 'string' && previews['evidence.csv'].length > 100, `${fileName} 缺少 evidence.csv`)
+      assert(typeof previews['analysis-manifest.json'] === 'string' && previews['analysis-manifest.json'].length > 100, `${fileName} 缺少 analysis-manifest.json`)
+      assert(replay.completed.insight === previews['explanation.md'], `${fileName} 的回放正文必须使用完整平台报告`)
+    }
+  })
+
+  await runTest('10.3 当前预设输入仍能精确命中对应回放', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(replayDirectory, 'manifest.json'), 'utf8'))
+    for (const scenario of DEMO_SCENARIOS) {
+      const request: StartAnalysisRequest = {
+        input: scenario.input,
+        calculation: calculateLivingCost(scenario.input),
+        locale: 'zh-CN',
+        includeInsight: true,
+        inputMode: 'basic',
+        incomeInputMode: 'net',
+        simulatedError: false,
+      }
+      const entry = manifest.replays.find((item: any) => item.scenarioId === scenario.id)
+      assert(entry !== undefined, `${scenario.id} 必须存在于回放清单`)
+      assert(entry.signature === requestSignature(request), `${scenario.id} 当前页面输入无法命中回放`)
+    }
+  })
+
+  await runTest('10.4 工资条回放保留扣缴摘要与未来账户口径', () => {
+    const replay = JSON.parse(fs.readFileSync(path.join(replayDirectory, 'payslip-raise-and-fixed-costs.json'), 'utf8'))
+    assert(replay.request.incomeInputMode === 'payslip', '工资条回放必须标记 payslip 输入模式')
+    assert(replay.request.payslipSummary?.grossIncrease === 1000, '工资条回放税前增长应为 1000 元')
+    assert(replay.request.payslipSummary?.netIncrease === 712, '工资条回放到手增长应为 712 元')
+    assert(replay.request.payslipSummary?.futureAccountChange === 200, '工资条回放必须保留未来账户变化')
+    assert(
+      JSON.stringify(calculateLivingCost(replay.request.input)) === JSON.stringify(replay.request.calculation),
+      '工资条回放的本地计算结果必须仍可由当前算法复算',
+    )
+  })
+
+  // --- 测试组 11: InfiniSynapse 模型选择与签名算法 ---
+  await runTest('11.1 模型选择签名逻辑：默认跳过、显式选择进入签名且与默认隔离', () => {
+    const baseRequest: StartAnalysisRequest = {
+      input: sampleInput,
+      calculation: sampleCalc,
+      locale: 'zh-CN',
+      includeInsight: true,
+      inputMode: 'basic',
+      incomeInputMode: 'net',
+    }
+
+    const defaultSig = requestSignature(baseRequest)
+
+    const flashSig = requestSignature({ ...baseRequest, analysisModel: 'deepseek-v4-flash' })
+    const proSig = requestSignature({ ...baseRequest, analysisModel: 'deepseek-v4-pro' })
+
+    assert(flashSig !== defaultSig, 'Flash 模型签名必须与平台默认签名不同')
+    assert(proSig !== defaultSig, 'Pro 模型签名必须与平台默认签名不同')
+    assert(flashSig !== proSig, 'Flash 模型与 Pro 模型签名必须互不相同')
   })
 
   console.log(`\n================ ALL ${passedCount} AUTOMATED TESTS PASSED ================\n`)
