@@ -2,7 +2,7 @@
  * 2025 年官方公开数据的第一版本地基准。
  *
  * 数值来自国家统计局公开页面，金额单位为“元/人/年”，价格变化单位为“%”。
- * 这里不把官方“居住”类 CPI 当作用户实际房租；用户输入的房租始终优先。
+ * 这里不把官方“居住”类 CPI 当作个人住房支出预测；用户输入的固定支出始终优先。
  */
 
 export type SpendingCategory =
@@ -54,7 +54,7 @@ const cpiSource = 'https://www.stats.gov.cn/sj/zxfb/202601/t20260109_1962273.htm
 export const OFFICIAL_2025_CPI: OfficialCpiRow[] = [
   { category: 'foodAndTobaccoAlcohol', label: '食品烟酒', annualYoYPercent: -0.7, scope: 'national', year: 2025, sourceUrl: cpiSource },
   { category: 'clothing', label: '衣着', annualYoYPercent: 1.5, scope: 'national', year: 2025, sourceUrl: cpiSource },
-  { category: 'housing', label: '居住（不等于用户实际房租）', annualYoYPercent: 0.1, scope: 'national', year: 2025, sourceUrl: cpiSource },
+  { category: 'housing', label: '居住（宏观基准）', annualYoYPercent: 0.1, scope: 'national', year: 2025, sourceUrl: cpiSource },
   { category: 'household', label: '生活用品及服务', annualYoYPercent: 0.9, scope: 'national', year: 2025, sourceUrl: cpiSource },
   { category: 'transportCommunication', label: '交通通信', annualYoYPercent: -2.6, scope: 'national', year: 2025, sourceUrl: cpiSource },
   { category: 'educationCultureEntertainment', label: '教育文化娱乐', annualYoYPercent: 0.8, scope: 'national', year: 2025, sourceUrl: cpiSource },
@@ -105,7 +105,7 @@ export const OFFICIAL_2025_INCOME_BENCHMARKS: IncomeBenchmark[] = [
 /**
  * Derived benchmark for the current single “other spending” input.
  * It applies national CPI category changes to the 2025 urban spending mix,
- * excluding housing because the app receives the user's real rent separately.
+ * excluding housing because the app receives the user's fixed housing cost separately.
  */
 export function deriveNonRentInflationRate(): number {
   const cpiByCategory = new Map(OFFICIAL_2025_CPI.map((row) => [row.category, row.annualYoYPercent]))
@@ -124,5 +124,5 @@ export const OFFICIAL_2025_DATA_NOTES = {
   sourceYear: 2025,
   sourceScope: '全国 CPI + 城镇居民消费结构',
   derivedRateMeaning: '将全国 CPI 八大类年度涨跌幅按 2025 年城镇居民消费金额加权，并排除居住类；不是用户个人实际生活成本涨幅。',
-  rentRule: '用户输入的真实房租优先；官方居住类 CPI 不代替真实房租。',
+  rentRule: '用户输入的固定住房支出优先；官方居住类 CPI 只作宏观参考。',
 } as const

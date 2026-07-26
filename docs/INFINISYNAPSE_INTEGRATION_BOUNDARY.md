@@ -20,5 +20,11 @@
 
 ## 3. 未知接口防护规则 (Unknown Interface Protection)
 
+### 当前阶段实现入口
+
+- 城市数据回退契约：`src/data/cityBenchmarks.ts` / `docs/CITY_BENCHMARK_CONTRACT.md`
+- 供应商端点、SSE 归一化、Prompt 和 workspace 产物契约：`src/api/infiniSynapseContract.ts` / `docs/INFINISYNAPSE_TASK_CONTRACT.md`
+- 当前仍未把供应商密钥或真实调用写入浏览器端；真实 Server API 适配器必须在独立服务端完成。
+
 1. **零暗猜接口**：严禁在前端推测、虚构或写死未经 `realRaiseContract.ts` 明确定义的后端接口。
 2. **Graceful Fallback**：若服务端尚未完成真实 API 对接，前端在 `remoteFeatureEnabled = false` 或 `useMock = true` 模式下回退至确定性计算 + 本地基准 Mock 状态机，绝不引发网页崩溃。

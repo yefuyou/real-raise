@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="440" viewBox="0 0 1440 440" role="img" aria-labelledby="title desc">
   <title id="title">Real Raise 真实结余计算流程</title>
-  <desc id="desc">工资增加，依次扣除房租变化和其他生活支出变化，得到真实结余变化。</desc>
+  <desc id="desc">收入变化经过扣缴、固定支出和日常生活支出后，得到真正可支配的结余变化。</desc>
 
   <defs>
     <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
@@ -46,9 +46,9 @@
       <rect width="274" height="226" rx="18" fill="#fffdf9" stroke="#ded2c4"/>
       <circle cx="44" cy="44" r="19" fill="#c85c44" opacity=".14"/>
       <path d="M32 45l12-10 12 10v12H32zM40 57V47h8v10" fill="none" stroke="#a94734" stroke-width="2.5" stroke-linejoin="round"/>
-      <text x="28" y="90" fill="#7e756c" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15">房租变化</text>
-      <text x="28" y="137" fill="#26221e" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="36" font-weight="700">− Δ 房租</text>
-      <text x="28" y="184" fill="#a94734" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14">以你的真实租金为准</text>
+      <text x="28" y="90" fill="#7e756c" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15">扣缴与固定支出</text>
+      <text x="28" y="137" fill="#26221e" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="36" font-weight="700">− Δ 扣缴 / 支出</text>
+      <text x="28" y="184" fill="#a94734" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14">个人输入优先，城市基准作参考</text>
     </g>
 
     <g transform="translate(644)">
