@@ -147,9 +147,133 @@ try {
   const status = await statusResponse.json()
   assert.equal(status.status, 'completed')
   console.log('PASS real-raise backend SSE/workspace integration')
+
+  // --- 缓存断言：同输入第二次请求命中缓存，不再调用供应商 ---
+  const vendorCallsBefore = vendorOrder.length
+  const cachedResponse = await fetch(`http://127.0.0.1:${backendPort}/api/real-raise/analysis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input: { currentIncome: 8000, nextIncome: 8400 },
+      calculation: { monthlyRemainderChange: 120, realPurchasingPowerRate: 0.015 },
+      locale: 'zh-CN',
+      includeInsight: true,
+    }),
+  })
+  assert.equal(cachedResponse.status, 202)
+  const cachedStarted = await cachedResponse.json()
+  assert.notEqual(cachedStarted.taskId, started.taskId)
+  const cachedEventsResponse = await fetch(`http://127.0.0.1:${backendPort}/api/real-raise/analysis/${cachedStarted.taskId}/events`)
+  const cachedEvents = await readSse(cachedEventsResponse)
+  const cachedCompleted = cachedEvents.at(-1)
+  assert.equal(cachedCompleted?.type, 'completed')
+  assert.equal(cachedCompleted?.cached, true)
+  assert.match(cachedCompleted.insight, /真实生活解读/)
+  assert.equal(vendorOrder.length, vendorCallsBefore, '缓存命中时不得产生新的供应商调用')
+  console.log('PASS same-input cache hit without vendor calls')
+
+  // --- 输入不同则不会命中缓存（哈希区分度） ---
+  const freshResponse = await fetch(`http://127.0.0.1:${backendPort}/api/real-raise/analysis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input: { currentIncome: 9000, nextIncome: 9600 },
+      calculation: { monthlyRemainderChange: 300, realPurchasingPowerRate: 0.02 },
+      locale: 'zh-CN',
+      includeInsight: true,
+    }),
+  })
+  const freshStarted = await freshResponse.json()
+  const freshEvents = await readSse(await fetch(`http://127.0.0.1:${backendPort}/api/real-raise/analysis/${freshStarted.taskId}/events`))
+  assert.equal(freshEvents.at(-1)?.type, 'completed')
+  assert.notEqual(freshEvents.at(-1)?.cached, true)
+  assert.ok(vendorOrder.length > vendorCallsBefore, '不同输入必须触发真实供应商调用')
+  console.log('PASS different input bypasses cache')
+
+  // --- health 探针 ---
+  const healthResponse = await fetch(`http://127.0.0.1:${backendPort}/api/health`)
+  assert.equal(healthResponse.status, 200)
+  assert.equal((await healthResponse.json()).ok, true)
+  console.log('PASS /api/health')
 } finally {
   for (const response of vendor.connections.values()) response.end()
   vendor.connections.clear()
   await close(backend)
   await close(vendor)
 }
+
+// --- 降级断言：供应商 429 → QUOTA_OR_RATE_LIMIT 可读失败事件 ---
+{
+  const quotaVendor = http.createServer((req, res) => {
+    res.writeHead(429, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ message: 'rate limited' }))
+  })
+  const quotaVendorPort = await listen(quotaVendor)
+  const quotaBackend = makeServer({ vendorBaseUrl: `http://127.0.0.1:${quotaVendorPort}`, apiKey: 'test-key' })
+  const quotaBackendPort = await listen(quotaBackend)
+  try {
+    const startResponse = await fetch(`http://127.0.0.1:${quotaBackendPort}/api/real-raise/analysis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: { currentIncome: 7000, nextIncome: 7300 },
+        calculation: { monthlyRemainderChange: 50 },
+        locale: 'zh-CN',
+        includeInsight: true,
+      }),
+    })
+    const started = await startResponse.json()
+    const events = await readSse(await fetch(`http://127.0.0.1:${quotaBackendPort}/api/real-raise/analysis/${started.taskId}/events`))
+    const failed = events.at(-1)
+    assert.equal(failed?.type, 'failed')
+    assert.equal(failed?.code, 'QUOTA_OR_RATE_LIMIT')
+    assert.equal(failed?.retryable, true)
+    assert.match(failed.message, /额度|频率/)
+    console.log('PASS vendor 429 maps to readable QUOTA_OR_RATE_LIMIT failure')
+  } finally {
+    await close(quotaBackend)
+    await close(quotaVendor)
+  }
+}
+
+// --- 静态托管断言：dist 存在时提供 SPA，同源部署可用 ---
+{
+  const fs = await import('node:fs')
+  const os = await import('node:os')
+  const pathMod = await import('node:path')
+  const distDir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'rr-dist-'))
+  fs.mkdirSync(pathMod.join(distDir, 'assets'), { recursive: true })
+  fs.writeFileSync(pathMod.join(distDir, 'index.html'), '<!doctype html><title>Real Raise</title>')
+  fs.writeFileSync(pathMod.join(distDir, 'assets', 'app.js'), 'console.log("rr")')
+  const staticBackend = makeServer({ apiKey: '', distRoot: distDir })
+  const staticPort = await listen(staticBackend)
+  try {
+    const home = await fetch(`http://127.0.0.1:${staticPort}/`)
+    assert.equal(home.status, 200)
+    assert.match(home.headers.get('content-type') || '', /text\/html/)
+    assert.match(await home.text(), /Real Raise/)
+
+    const spa = await fetch(`http://127.0.0.1:${staticPort}/some/client/route`)
+    assert.equal(spa.status, 200, 'SPA 路由必须回退到 index.html')
+
+    const asset = await fetch(`http://127.0.0.1:${staticPort}/assets/app.js`)
+    assert.equal(asset.status, 200)
+    assert.match(asset.headers.get('cache-control') || '', /immutable/)
+
+    const escape = await fetch(`http://127.0.0.1:${staticPort}/..%2f..%2fetc%2fpasswd`)
+    assert.equal(escape.status, 404, '目录穿越必须被拒绝')
+
+    const missingKey = await fetch(`http://127.0.0.1:${staticPort}/api/real-raise/analysis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ calculation: { x: 1 } }),
+    })
+    assert.equal(missingKey.status, 503, '缺少 API Key 必须返回可读的 503 降级')
+    console.log('PASS static hosting, SPA fallback, traversal guard, missing-key degradation')
+  } finally {
+    await close(staticBackend)
+    fs.rmSync(distDir, { recursive: true, force: true })
+  }
+}
+
+console.log('\nALL SERVER TESTS PASSED')

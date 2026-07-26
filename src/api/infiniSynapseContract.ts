@@ -16,6 +16,7 @@ export const INFINI_SYNAPSE_API_BASE_URL = 'https://app.infinisynapse.cn'
 
 export const INFINI_SYNAPSE_ROUTES = {
   events: (connId: string) => `/api/ai/events?connId=${encodeURIComponent(connId)}`,
+  settings: '/api/ai/settings',
   message: '/api/ai/message',
   taskInfo: (taskId: string) => `/api/ai_task/getTaskInfo/${encodeURIComponent(taskId)}`,
   workspace: (taskId: string) => `/api/ai_task/getTaskWorkspace/${encodeURIComponent(taskId)}`,

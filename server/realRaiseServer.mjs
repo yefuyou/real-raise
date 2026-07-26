@@ -1,12 +1,13 @@
 import http from 'node:http'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
 function loadLocalEnv() {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-  const filePath = path.join(root, '.env.local')
+  const filePath = path.join(PROJECT_ROOT, '.env.local')
   if (!fs.existsSync(filePath)) return
   for (const line of fs.readFileSync(filePath, 'utf8').split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/)
@@ -21,6 +22,62 @@ const DEFAULT_VENDOR_BASE_URL = 'https://app.infinisynapse.cn'
 const DEFAULT_PORT = 8787
 const MAX_BODY_BYTES = 512 * 1024
 const TERMINAL_EVENTS = new Set(['completed', 'failed'])
+const COMPLETED_CACHE_LIMIT = 100
+
+/** 键排序的稳定序列化，保证同输入得到同哈希。 */
+function stableStringify(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  const keys = Object.keys(value).sort()
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`
+}
+
+/** 同输入哈希：命中缓存的任务不再调用供应商，不重复扣额度。 */
+function hashRequest(request) {
+  const material = {
+    input: request.input ?? null,
+    calculation: request.calculation ?? null,
+    locale: request.locale ?? 'zh-CN',
+    inputMode: request.inputMode ?? 'basic',
+    incomeInputMode: request.incomeInputMode ?? 'net',
+    detailedBreakdown: request.detailedBreakdown ?? null,
+    payslipSummary: request.payslipSummary ?? null,
+    cityCode: request.cityCode ?? 'national',
+    cityPeriod: request.cityPeriod ?? '2026H1',
+    userQuestion: request.userQuestion ?? null,
+  }
+  return createHash('sha256').update(stableStringify(material)).digest('hex')
+}
+
+/** 供应商 HTTP 状态 → 面向用户的降级信息。 */
+function vendorFailureInfo(status) {
+  if (status === 401 || status === 403) {
+    return { code: 'AUTH_ERROR', retryable: false, message: 'API Key 无效或未授权，请检查服务端配置。' }
+  }
+  if (status === 402 || status === 429) {
+    return { code: 'QUOTA_OR_RATE_LIMIT', retryable: true, message: '平台额度或请求频率受限，请稍后重试；相同输入会命中缓存，不再重复扣额度。' }
+  }
+  if (status >= 500) {
+    return { code: 'VENDOR_UNAVAILABLE', retryable: true, message: 'InfiniSynapse 平台暂时繁忙，请稍后重试。' }
+  }
+  return { code: 'INFINISYNAPSE_ERROR', retryable: true, message: `InfiniSynapse HTTP ${status}` }
+}
+
+const STATIC_MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json; charset=utf-8',
+}
 
 const DEFAULT_SOURCES = [
   {
@@ -134,6 +191,9 @@ function makePrompt(request) {
   const detailed = request.detailedBreakdown
     ? JSON.stringify(request.detailedBreakdown, null, 2)
     : '未开启详细分类模式。'
+  const payslip = request.payslipSummary
+    ? `工资条摘要（用户输入，本地已确定性计算）：${JSON.stringify(request.payslipSummary)}\n解释扣缴去向时注意：养老保险与住房公积金计入“未来保障与账户积累”，不得称为“消失”。`
+    : ''
   const sources = (request.sourceRefs || DEFAULT_SOURCES)
     .map((source) => `- ${source.name}｜${source.year ?? '年份未标注'}｜${source.scope}｜${source.url}`)
     .join('\n')
@@ -146,6 +206,7 @@ function makePrompt(request) {
     `城市：${request.cityName || '全国'}（${request.cityCode || 'national'}），期间：${request.cityPeriod || '2026H1'}`,
     `本地计算结果：${JSON.stringify(calculation)}`,
     `详细分类：${detailed}`,
+    ...(payslip ? [payslip] : []),
     `官方来源索引：${sources}`,
     '输出一段面向普通中国城市上班族的简短解释，区分用户输入、本地确定性计算、官方观察值和派生估算；城市数据缺失时明确说使用全国基准。',
     '尽力在工作区生成 explanation.md、evidence.csv、analysis-manifest.json；不要为了生成文件联网检索。',
@@ -233,8 +294,31 @@ function makeServer(options = {}) {
   const vendorBaseUrl = (options.vendorBaseUrl || process.env.INFINISYNAPSE_BASE_URL || DEFAULT_VENDOR_BASE_URL).replace(/\/$/, '')
   const apiKey = options.apiKey ?? process.env.INFINISYNAPSE_API_KEY ?? ''
   const fetchImpl = options.fetchImpl || globalThis.fetch
+  const distRoot = options.distRoot ?? path.join(PROJECT_ROOT, 'dist')
   const tasks = new Map()
+  /** 输入哈希 → 已完成结果（LRU 上限 COMPLETED_CACHE_LIMIT）。 */
+  const completedCache = new Map()
+  /** 输入哈希 → 进行中的 taskId，双击/刷新去重。 */
+  const pendingByHash = new Map()
   const log = options.log || (() => {})
+
+  const readCache = (hash) => {
+    const hit = completedCache.get(hash)
+    if (!hit) return null
+    completedCache.delete(hash)
+    completedCache.set(hash, hit)
+    return hit
+  }
+
+  const writeCache = (hash, payload) => {
+    if (!hash) return
+    completedCache.delete(hash)
+    completedCache.set(hash, payload)
+    while (completedCache.size > COMPLETED_CACHE_LIMIT) {
+      const oldest = completedCache.keys().next().value
+      completedCache.delete(oldest)
+    }
+  }
 
   const emit = (task, event) => {
     if (TERMINAL_EVENTS.has(event.type) && task.status === event.type) return
@@ -263,7 +347,13 @@ function makeServer(options = {}) {
         ...(init.headers || {}),
       },
     })
-    if (!response.ok) throw new Error(`InfiniSynapse HTTP ${response.status}`)
+    if (!response.ok) {
+      const info = vendorFailureInfo(response.status)
+      const error = new Error(info.message)
+      error.code = info.code
+      error.retryable = info.retryable
+      throw error
+    }
     return response
   }
 
@@ -307,25 +397,31 @@ function makeServer(options = {}) {
       : typeof explanation?.content === 'string'
         ? explanation.content
         : task.finalText || '分析任务已完成，但没有找到可预览的 explanation.md。'
+    const sources = task.request.sourceRefs || DEFAULT_SOURCES
     emit(task, {
       type: 'completed',
       taskId: task.id,
       insight,
-      sources: task.request.sourceRefs || DEFAULT_SOURCES,
+      sources,
       workspace,
     })
     task.workspace = workspace
+    if (task.hash) {
+      writeCache(task.hash, { insight, sources, workspace })
+      if (pendingByHash.get(task.hash) === task.id) pendingByHash.delete(task.hash)
+    }
   }
 
-  const failTask = (task, error, retryable = true) => {
+  const failTask = (task, error, retryable) => {
     if (task.status === 'completed' || task.status === 'failed') return
     emit(task, {
       type: 'failed',
       taskId: task.id,
       code: error.code || 'INFINISYNAPSE_ERROR',
       message: error.message || '真实分析任务失败。',
-      retryable,
+      retryable: retryable ?? error.retryable ?? true,
     })
+    if (task.hash && pendingByHash.get(task.hash) === task.id) pendingByHash.delete(task.hash)
   }
 
   const handleVendorEvent = async (task, eventName, payload) => {
@@ -432,10 +528,11 @@ function makeServer(options = {}) {
     })
   }
 
-  const startTask = async (request) => {
+  const createTask = (request, hash) => {
     const id = randomUUID()
     const task = {
       id,
+      hash,
       vendorTaskId: randomUUID(),
       connId: randomUUID(),
       request,
@@ -446,6 +543,43 @@ function makeServer(options = {}) {
       completedAt: null,
     }
     tasks.set(id, task)
+    return task
+  }
+
+  const startTask = async (request) => {
+    const hash = hashRequest(request)
+
+    // 进行中去重：同一输入的任务还在跑，直接复用，避免双击双扣。
+    const pendingId = pendingByHash.get(hash)
+    if (pendingId) {
+      const pending = tasks.get(pendingId)
+      if (pending && pending.status !== 'completed' && pending.status !== 'failed') {
+        log(`复用进行中任务 ${pending.id}`)
+        return pending
+      }
+      pendingByHash.delete(hash)
+    }
+
+    // 完成缓存：同输入直接回放结果，不调用供应商、不扣额度。
+    const cached = readCache(hash)
+    if (cached) {
+      const task = createTask(request, hash)
+      log(`命中输入缓存 ${task.id}`)
+      emit(task, { type: 'started', taskId: task.id })
+      emit(task, {
+        type: 'completed',
+        taskId: task.id,
+        insight: cached.insight,
+        sources: cached.sources,
+        workspace: cached.workspace,
+        cached: true,
+      })
+      task.workspace = cached.workspace
+      return task
+    }
+
+    const task = createTask(request, hash)
+    pendingByHash.set(hash, task.id)
     void runVendorTask(task)
     return task
   }
@@ -458,11 +592,48 @@ function makeServer(options = {}) {
     insight: task.finalText || undefined,
   })
 
+  /** 静态托管 dist/：单服务部署时同源提供前端，SSE 零跨域。 */
+  const serveStatic = (req, res, pathname) => {
+    if (!fs.existsSync(distRoot)) return false
+    let rel
+    try {
+      rel = decodeURIComponent(pathname)
+    } catch {
+      return false
+    }
+    if (rel === '/' || rel === '') rel = '/index.html'
+    const resolved = path.resolve(distRoot, `.${rel}`)
+    if (resolved !== distRoot && !resolved.startsWith(distRoot + path.sep)) return false
+    let filePath = resolved
+    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      if (path.extname(rel)) return false
+      filePath = path.join(distRoot, 'index.html')
+      if (!fs.existsSync(filePath)) return false
+    }
+    const ext = path.extname(filePath).toLowerCase()
+    res.writeHead(200, {
+      'Content-Type': STATIC_MIME[ext] || 'application/octet-stream',
+      'Cache-Control': rel.startsWith('/assets/')
+        ? 'public, max-age=31536000, immutable'
+        : ext === '.html' ? 'no-store' : 'public, max-age=300',
+    })
+    if (req.method === 'HEAD') {
+      res.end()
+      return true
+    }
+    fs.createReadStream(filePath).pipe(res)
+    return true
+  }
+
   const handle = async (req, res) => {
     setCors(res)
     if (req.method === 'OPTIONS') return json(res, 204, {})
     const url = new URL(req.url, 'http://localhost')
     const pathname = url.pathname
+
+    if (req.method === 'GET' && pathname === '/api/health') {
+      return json(res, 200, { ok: true, service: 'real-raise-backend' })
+    }
 
     if (req.method === 'POST' && pathname === '/api/real-raise/analysis') {
       try {
@@ -541,6 +712,14 @@ function makeServer(options = {}) {
       }
     }
 
+    if ((req.method === 'GET' || req.method === 'HEAD') && !pathname.startsWith('/api/')) {
+      try {
+        if (serveStatic(req, res, pathname)) return
+      } catch (error) {
+        log(`静态资源服务失败: ${error.message}`)
+      }
+    }
+
     return json(res, 404, { error: 'Not found' })
   }
 
@@ -557,9 +736,11 @@ function makeServer(options = {}) {
 export { makeServer }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.REAL_RAISE_PORT || DEFAULT_PORT)
+  // 云平台（Render/Railway 等）注入 PORT 时监听 0.0.0.0；本地开发保持 127.0.0.1。
+  const port = Number(process.env.PORT || process.env.REAL_RAISE_PORT || DEFAULT_PORT)
+  const host = process.env.REAL_RAISE_HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1')
   const server = makeServer()
-  server.listen(port, '127.0.0.1', () => {
-    console.log(`Real Raise backend listening on http://127.0.0.1:${port}`)
+  server.listen(port, host, () => {
+    console.log(`Real Raise backend listening on http://${host}:${port}`)
   })
 }

@@ -7,6 +7,7 @@
     "dev": "vite",
     "server": "node server/realRaiseServer.mjs",
     "server:test": "node scripts/test-real-raise-server.mjs",
+    "replays:manifest": "node scripts/buildReplayManifest.mjs",
     "build": "node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.app.json --pretty false && node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.node.json --pretty false && vite build",
     "preview": "vite preview",
     "test": "node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.app.json --pretty false && node ./node_modules/typescript/lib/tsc.js src/tests/runTests.ts --outDir ./dist-test --target es2020 --module commonjs --moduleResolution node && node -e \"fs.writeFileSync('./dist-test/package.json', JSON.stringify({type:'commonjs'}))\" && node ./dist-test/tests/runTests.js",

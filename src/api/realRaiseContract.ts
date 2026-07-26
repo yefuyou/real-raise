@@ -1,4 +1,5 @@
 import type { LivingCostResult, ScenarioInput } from '../domain/livingCost'
+import type { PayslipSummary } from '../domain/salarySlip'
 
 /**
  * Official 2026H1 CPI rates per category (from national stats).
@@ -84,7 +85,15 @@ export type AgentTaskEvent =
   | { type: 'progress'; taskId: string; stage: string; message: string; percent?: number }
   | { type: 'insight'; taskId: string; text: string }
   | { type: 'artifact'; taskId: string; name: string; kind: 'markdown' | 'pdf' | 'image' | 'data'; url?: string }
-  | { type: 'completed'; taskId: string; insight: string; sources: SourceReference[]; structuredInsight?: RealRaiseInsight }
+  | {
+      type: 'completed'
+      taskId: string
+      insight: string
+      sources: SourceReference[]
+      structuredInsight?: RealRaiseInsight
+      /** 存在即表示本次结果来自真实任务存档回放，UI 必须显式标注。 */
+      replayMeta?: { scenarioId: string; vendorTaskId: string; recordedAt: string }
+    }
   | { type: 'failed'; taskId: string; code: string; message: string; retryable: boolean }
 
 export type SourceReference = {
@@ -94,6 +103,8 @@ export type SourceReference = {
   url: string
 }
 
+export type AnalysisModel = 'deepseek-v4-flash' | 'deepseek-v4-pro'
+
 export type StartAnalysisRequest = {
   input: ScenarioInput
   calculation: LivingCostResult
@@ -101,7 +112,13 @@ export type StartAnalysisRequest = {
   includeInsight: boolean
   inputMode?: 'basic' | 'detailed'
   detailedBreakdown?: DetailedSpendBreakdown
+  /** 收入输入方式：直接填到手（net）或工资条拆解（payslip）。 */
+  incomeInputMode?: 'net' | 'payslip'
+  /** 工资条模式的本地确定性摘要；仅 payslip 模式下随请求提交。 */
+  payslipSummary?: PayslipSummary
   simulatedError?: boolean
+  /** 显式选择的分析模型；未指定时跟随平台默认。 */
+  analysisModel?: AnalysisModel
 }
 
 export type StartAnalysisResponse = {

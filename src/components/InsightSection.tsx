@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   Compass,
   Download,
   FileText,
@@ -18,13 +19,15 @@ import {
   Zap,
 } from 'lucide-react'
 import { apiClient, generateMockStructuredInsight } from '../api/apiClient'
+import { hasApiKey } from '../api/apiKeyStore'
+import { ApiKeyPanel } from './ApiKeyPanel'
 import type {
   AgentTaskStatus,
+  AnalysisModel,
   RealRaiseInsight,
   SourceReference,
   StartAnalysisRequest,
 } from '../api/realRaiseContract'
-import { REAL_RAISE_BACKEND_ROUTES } from '../api/realRaiseContract'
 
 interface InsightSectionProps {
   requestPayload: StartAnalysisRequest
@@ -196,6 +199,36 @@ function sanitizeStageMessage(raw?: string): string {
   return singleLine
 }
 
+/**
+ * 可折叠分析块。报告一次性铺开太长，默认只展开最有行动价值的一块，
+ * 其余收起。用原生 details/summary：键盘与屏幕阅读器开箱可用。
+ */
+function AnalysisBlock({
+  icon,
+  title,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <details className="analysis-block" open={defaultOpen}>
+      <summary className="block-title">
+        {icon}
+        <h3>{title}</h3>
+        <span className="block-subtitle">{subtitle}</span>
+        <ChevronDown size={15} className="block-caret" aria-hidden="true" />
+      </summary>
+      <div className="block-body">{children}</div>
+    </details>
+  )
+}
+
 export const InsightSection: React.FC<InsightSectionProps> = ({
   requestPayload,
   onOpenSources,
@@ -214,6 +247,11 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [simulatedError] = useState<boolean>(false)
   const [unsubscribe, setUnsubscribe] = useState<(() => void) | null>(null)
+  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => hasApiKey())
+  const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
+  /** 非空 = 本次结果来自真实任务存档回放（必须显式标注，不冒充实时）。 */
+  const [replayMeta, setReplayMeta] = useState<{ scenarioId: string; vendorTaskId: string; recordedAt: string } | null>(null)
+  const [exportNotice, setExportNotice] = useState<string | null>(null)
 
   useEffect(() => {
     const savedTaskId = localStorage.getItem('real_raise_active_task')
@@ -248,9 +286,15 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setDownloadError(null)
     setInsightText(null)
     setStructuredInsight(null)
+    setReplayMeta(null)
+    setExportNotice(null)
 
     try {
-      const payload = { ...requestPayload, simulatedError: isSimError }
+      const payload: StartAnalysisRequest = {
+        ...requestPayload,
+        simulatedError: isSimError,
+        ...(selectedModel ? { analysisModel: selectedModel } : {}),
+      }
       const response = await apiClient.startAnalysis(payload)
       const newTaskId = response.taskId
       setTaskId(newTaskId)
@@ -276,6 +320,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           setPercent(100)
           setInsightText(evt.insight)
           setSources(evt.sources)
+          setReplayMeta(evt.replayMeta ?? null)
           const struct = evt.structuredInsight || generateMockStructuredInsight(requestPayload)
           setStructuredInsight(struct)
           setStage('分析完成')
@@ -305,19 +350,22 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setPercent(0)
   }
 
-  const handleDownloadArtifact = async (fileName: string) => {
+  const handleDownloadArtifact = (fileName: string) => {
     setDownloadError(null)
     if (!taskId) {
       setDownloadError('暂无可用分析任务 ID，无法下载凭证。')
       return
     }
+    // 纯静态部署没有后端可下载，产物直接来自本次任务在浏览器内的结果。
+    const content = apiClient.getArtifactContent(taskId, fileName)
+    if (content === null) {
+      setDownloadError(`没有找到可下载的 ${fileName}，请重新生成一次解读后再试。`)
+      return
+    }
     try {
-      const downloadUrl = REAL_RAISE_BACKEND_ROUTES.artifact(taskId, fileName)
-      const res = await fetch(downloadUrl)
-      if (!res.ok) {
-        throw new Error(`请求服务端文件失败 (HTTP ${res.status})`)
-      }
-      const blob = await res.blob()
+      const blob = new Blob([content], {
+        type: fileName.endsWith('.json') ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8',
+      })
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
@@ -327,8 +375,29 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       document.body.removeChild(a)
       URL.revokeObjectURL(blobUrl)
     } catch (err: any) {
-      setDownloadError(`下载凭证文件 ${fileName} 失败：${err.message || '网络连接异常'}`)
+      setDownloadError(`保存凭证文件 ${fileName} 失败：${err.message || '浏览器拒绝了下载'}`)
     }
+  }
+
+  /** dev 工具：把刚跑完的真实任务导出为回放包，落盘 public/replays/ 后评委无 Key 可看。 */
+  const handleExportReplay = () => {
+    if (!taskId) return
+    const scenarioId = `scenario-${Date.now()}`
+    const json = apiClient.exportReplay(taskId, scenarioId)
+    if (!json) {
+      setExportNotice('只有本次会话里真实跑完的任务才能导出回放包。')
+      return
+    }
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' })
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = `${scenarioId}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(blobUrl)
+    setExportNotice('回放包已下载：重命名成场景名放进 public/replays/，再运行 npm run replays:manifest。')
   }
 
   return (
@@ -380,10 +449,15 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             <p>
               结合官方 CPI 数据与您的收支输入，生成定制化 AI 生活解读报告。
             </p>
+            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
             <button className="btn-generate-insight" onClick={() => handleStartInsight()} type="button">
-              <Sparkles size={16} /> 生成 AI 生活解读
+              <Sparkles size={16} /> {keyConfigured ? '生成 AI 生活解读' : '生成解读'}
             </button>
-            <span className="quota-hint">使用本项目真实分析服务进行实时计算</span>
+            <span className="quota-hint">
+              {keyConfigured
+                ? '由你的 Key 直接调用分析平台，用量计入你自己的账号'
+                : '未填 Key：预设案例优先播放真实任务的存档回放（可核验、零额度），其余输入用本地演示数据'}
+            </span>
           </div>
         </div>
       ) : status === 'queued' || status === 'running' ? (
@@ -412,7 +486,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         <div className="insight-body completed-state">
           <div className="insight-result-header">
             <span className="success-tag">
-              <CheckCircle2 size={14} /> AI 生活解读已生成
+              <CheckCircle2 size={14} />
+              {replayMeta ? '真实任务存档回放' : keyConfigured ? 'AI 生活解读已生成' : '演示解读已生成'}
             </span>
             {sources.length > 0 && (
               <button
@@ -425,20 +500,26 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             )}
           </div>
 
+          {replayMeta && (
+            <p className="replay-banner">
+              真实任务存档回放 · 任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
+              评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。
+            </p>
+          )}
+
           <div className="insight-text-content">
             <SimpleMarkdownRenderer content={insightText || ''} />
           </div>
 
           {structuredInsight && (
             <div className="structured-analysis-container">
-              {/* 区块 1：成本压力来源图 */}
-              <div className="analysis-block">
-                <div className="block-title">
-                  <PieChart size={17} />
-                  <h3>主要成本压力来源</h3>
-                  <span className="block-subtitle">月开支增减贡献分析（元/月）</span>
-                </div>
-
+              {/* 区块 1：成本压力来源图（默认展开：最有行动价值） */}
+              <AnalysisBlock
+                icon={<PieChart size={17} />}
+                title="主要成本压力来源"
+                subtitle="月开支增减贡献分析（元/月）"
+                defaultOpen
+              >
                 <div className="drivers-list">
                   {structuredInsight.drivers.map((drv) => {
                     const impact = drv.monthlyImpact ?? 0
@@ -467,16 +548,14 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                     )
                   })}
                 </div>
-              </div>
+              </AnalysisBlock>
 
               {/* 区块 2：我和城市基准的差异 */}
-              <div className="analysis-block">
-                <div className="block-title">
-                  <TrendingUp size={17} />
-                  <h3>我和城市基准的差异</h3>
-                  <span className="block-subtitle">个人增速 vs 城镇宏观指标对比</span>
-                </div>
-
+              <AnalysisBlock
+                icon={<TrendingUp size={17} />}
+                title="我和城市基准的差异"
+                subtitle="个人增速 vs 城镇宏观指标对比"
+              >
                 <div className="benchmark-grid">
                   <div className="bm-card">
                     <span className="bm-label">个人预计收入增速</span>
@@ -511,34 +590,46 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                     <div className="trend-header">
                       <LineChart size={15} /> 2021–2025 官方年度基准与个人趋势
                     </div>
-                    <div className="trend-series-list">
-                      {structuredInsight.trend.series.map((s) => (
-                        <div key={s.id} className="trend-series-item">
-                          <span className="series-title">{s.label}：</span>
-                          <div className="trend-dots">
-                            {s.values.map((v, idx) => (
-                              <span key={idx} className="trend-dot-badge">
-                                <em>{structuredInsight.trend!.periods[idx]}</em>: {v !== null ? `${(v * 100).toFixed(1)}%` : 'null'}
-                              </span>
+                    {/* 同样的年份跨三条序列，表格比一排排徽章短得多也好比对。 */}
+                    <div className="trend-table-wrap">
+                      <table className="trend-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">指标</th>
+                            {structuredInsight.trend.periods.map((period) => (
+                              <th scope="col" key={period}>{period}</th>
                             ))}
-                          </div>
-                        </div>
-                      ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {structuredInsight.trend.series.map((series) => (
+                            <tr key={series.id}>
+                              <th scope="row">{series.label}</th>
+                              {series.values.map((value, idx) => (
+                                <td key={idx} className={value === null ? 'is-missing' : ''}>
+                                  {value === null ? '—' : `${(value * 100).toFixed(1)}%`}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
+                    <p className="trend-missing-note">
+                      「—」表示没有这一年的数据：你没有提供个人历史收入，本项目不插值、不拿宏观平均冒充个人值。
+                    </p>
                   </div>
                 )}
 
                 <p className="bm-caveat">{structuredInsight.benchmark.caveat}</p>
-              </div>
+              </AnalysisBlock>
 
               {/* 区块 3：可调整的情景选择 */}
-              <div className="analysis-block">
-                <div className="block-title">
-                  <Compass size={17} />
-                  <h3>可调整的情景选择</h3>
-                  <span className="block-subtitle">基于个人算表与数据源推演的情景建议</span>
-                </div>
-
+              <AnalysisBlock
+                icon={<Compass size={17} />}
+                title="可调整的情景选择"
+                subtitle="基于个人算表与数据源推演的情景建议"
+              >
                 <div className="scenarios-grid">
                   {structuredInsight.scenarios.map((sc) => (
                     <div key={sc.id} className="scenario-card-item">
@@ -553,7 +644,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                     </div>
                   ))}
                 </div>
-              </div>
+              </AnalysisBlock>
 
               {/* 区块 4：风险提示 */}
               {structuredInsight.warnings.length > 0 && (
@@ -575,13 +666,22 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                   <FileText size={16} className="artifact-icon" />
                   <div>
                     <h4>结构化诊断分析证据产物 (Artifact)</h4>
-                    <p className="artifact-subtitle">由后端 AgentTaskService 导出的只读分析凭证</p>
+                    <p className="artifact-subtitle">
+                      {replayMeta
+                        ? '真实任务存档中的平台产物（回放，可在平台后台核验）'
+                        : keyConfigured
+                        ? '由分析平台产物与本地确定性算表导出的只读凭证'
+                        : '由本地确定性算表导出的只读凭证（演示模式）'}
+                    </p>
                   </div>
                   <span className="artifact-badge">REAL_RAISE_REPORT.md</span>
                 </div>
                 <div className="artifact-card-body">
-                  <div className="artifact-preview-box">
-                    <pre><code>{`# REAL RAISE 购买力与消费诊断报告
+                  {/* 预览只是给想核对的人看的，默认收起省版面。 */}
+                  <details className="artifact-preview-details">
+                    <summary>查看报告头信息</summary>
+                    <div className="artifact-preview-box">
+                      <pre><code>{`# REAL RAISE 购买力与消费诊断报告
 任务ID: ${taskId || 'mock-task-1'}
 --------------------------------------------------
 - 状态: 已完成 (Completed)
@@ -589,7 +689,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
 - 数据底座: 本地确定性算表 + 2026H1 官方 CPI
 - 权威原则: AI 解读不覆盖本地数字卡片金额
 `}</code></pre>
-                  </div>
+                    </div>
+                  </details>
                   <div className="artifact-actions">
                     <button
                       type="button"
@@ -612,12 +713,23 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             </div>
           )}
 
+          {/* 看完演示后想换成自己的 Key 重跑，入口留在结果下方。 */}
+          {!keyConfigured && <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />}
+
           <div className="insight-action-footer">
             <span className="footnote-text">数据来源：权威公开统计数据库 & 本地精准算表</span>
-            <button className="btn-reanalyze" onClick={() => handleStartInsight()} type="button">
-              <RefreshCw size={13} /> 重新分析
-            </button>
+            <div className="footer-actions">
+              {import.meta.env.DEV && keyConfigured && !replayMeta && (
+                <button className="btn-export-replay" onClick={handleExportReplay} type="button">
+                  <Download size={13} /> 导出回放包（dev）
+                </button>
+              )}
+              <button className="btn-reanalyze" onClick={() => handleStartInsight()} type="button">
+                <RefreshCw size={13} /> 重新分析
+              </button>
+            </div>
           </div>
+          {exportNotice && <p className="export-notice">{exportNotice}</p>}
         </div>
       ) : status === 'failed' ? (
         <div className="insight-body failed-state">
@@ -628,6 +740,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               <p>{errorMessage}</p>
             </div>
           </div>
+          {/* Key 无效时失败信息在这里出现，改 Key 的入口必须也在这里。 */}
+          <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
           <button className="btn-retry" onClick={() => handleStartInsight(false)} type="button">
             <RefreshCw size={14} /> 重新尝试
           </button>
@@ -635,6 +749,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       ) : status === 'cancelled' ? (
         <div className="insight-body cancelled-state">
           <p className="cancelled-note">任务已取消。您的本地输入与精准计算数字已被完整保留。</p>
+          <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
           <button className="btn-restart" onClick={() => handleStartInsight()} type="button">
             <Sparkles size={14} /> 重新生成解读
           </button>

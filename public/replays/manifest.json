@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "replay-manifest.v1",
+  "replays": [
+    {
+      "scenarioId": "comfortable-raise",
+      "file": "comfortable-raise.json",
+      "signature": "f4c0da5635f36ad7",
+      "vendorTaskId": "90c66681-eba2-4feb-816d-90ec416a2122",
+      "recordedAt": "2026-07-26T13:38:45.226Z"
+    },
+    {
+      "scenarioId": "payslip-raise-and-fixed-costs",
+      "file": "payslip-raise-and-fixed-costs.json",
+      "signature": "439bd3cf8a3f2680",
+      "vendorTaskId": "2a735498-f2ec-448f-b839-639ddce26c4f",
+      "recordedAt": "2026-07-26T14:29:44.118Z"
+    },
+    {
+      "scenarioId": "raise-and-fixed-costs",
+      "file": "raise-and-fixed-costs.json",
+      "signature": "113fd9519b5a926c",
+      "vendorTaskId": "a2083df0-0792-4b1e-8d04-03d8cc0d5028",
+      "recordedAt": "2026-07-26T13:13:56.632Z"
+    },
+    {
+      "scenarioId": "take-home-raise-shrinks",
+      "file": "take-home-raise-shrinks.json",
+      "signature": "c91f639cf338bd39",
+      "vendorTaskId": "6147a8d1-4bb9-416c-a664-ae54092fcc26",
+      "recordedAt": "2026-07-26T13:00:35.610Z"
+    }
+  ]
+}
