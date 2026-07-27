@@ -151,6 +151,8 @@ function App() {
     setInputMode('basic')
     setIncomeInputMode('net')
     setPayslip(EMPTY_PAYSLIP)
+    setSelectedCityCode('340100')
+    setActiveBenchmarkTab('current')
     setIsDirty(false)
   }
 

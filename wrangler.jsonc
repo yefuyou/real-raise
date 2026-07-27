@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "real-raise-api",
+  "main": "worker/index.mjs",
+  "compatibility_date": "2026-07-27",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "INFINISYNAPSE_API_BASE_URL": "https://app.infinisynapse.cn",
+    "LIVE_ANALYSIS_ENABLED": "false",
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+    "DAILY_LIVE_LIMIT": "10",
+    "MAX_INFLIGHT": "1"
+  },
+  "secrets": {
+    "required": [
+      "INFINISYNAPSE_API_KEY"
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "ANALYSIS_RATE_LIMITER",
+      "namespace_id": "940271",
+      "simple": {
+        "limit": 1,
+        "period": 60
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "USAGE_GUARD",
+        "class_name": "UsageGuard"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "UsageGuard"
+      ]
+    }
+  ]
+}

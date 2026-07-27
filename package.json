@@ -7,6 +7,10 @@
     "dev": "vite",
     "server": "node server/realRaiseServer.mjs",
     "server:test": "node scripts/test-real-raise-server.mjs",
+    "worker:dev": "wrangler dev",
+    "worker:check": "wrangler deploy --dry-run",
+    "worker:test": "node scripts/test-cloudflare-worker.mjs",
+    "worker:deploy": "wrangler deploy",
     "replays:manifest": "node scripts/buildReplayManifest.mjs",
     "build": "node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.app.json --pretty false && node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.node.json --pretty false && vite build",
     "preview": "vite preview",
@@ -23,6 +27,7 @@
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1"
+    "@types/react-dom": "^18.3.1",
+    "wrangler": "^4.114.0"
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { apiClient, generateMockStructuredInsight } from '../api/apiClient'
 import { hasApiKey } from '../api/apiKeyStore'
+import { requestSignature } from '../api/requestSignature'
 import { ApiKeyPanel } from './ApiKeyPanel'
 import type {
   AgentTaskStatus,
@@ -246,38 +247,100 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [simulatedError] = useState<boolean>(false)
-  const [unsubscribe, setUnsubscribe] = useState<(() => void) | null>(null)
-  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => hasApiKey())
+  const serverLiveConfigured = apiClient.getActiveMode() === 'server-live'
+  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => serverLiveConfigured || hasApiKey())
   const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
   /** 非空 = 本次结果来自真实任务存档回放（必须显式标注，不冒充实时）。 */
   const [replayMeta, setReplayMeta] = useState<{ scenarioId: string; vendorTaskId: string; recordedAt: string } | null>(null)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
+  const unsubscribeRef = useRef<(() => void) | null>(null)
+  const activeTaskIdRef = useRef<string | null>(null)
+  const runVersionRef = useRef(0)
+  const currentRequestSignature = requestSignature({
+    ...requestPayload,
+    ...(selectedModel ? { analysisModel: selectedModel } : {}),
+  })
+  const previousRequestSignatureRef = useRef(currentRequestSignature)
 
   useEffect(() => {
-    const savedTaskId = localStorage.getItem('real_raise_active_task')
-    if (savedTaskId) {
-      setTaskId(savedTaskId)
+    // 旧版本写过一个无法真正跨刷新恢复的活动任务 ID；启动时迁移清掉。
+    try {
+      localStorage.removeItem('real_raise_active_task')
+    } catch {
+      // 隐私模式下 localStorage 可能不可用。
     }
   }, [])
 
   useEffect(() => {
     return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
+      runVersionRef.current += 1
+      unsubscribeRef.current?.()
+      unsubscribeRef.current = null
+      const activeTaskId = activeTaskIdRef.current
+      activeTaskIdRef.current = null
+      if (activeTaskId) void apiClient.cancelAnalysis(activeTaskId)
     }
-  }, [unsubscribe])
+  }, [])
+
+  useEffect(() => {
+    if (previousRequestSignatureRef.current === currentRequestSignature) return
+    previousRequestSignatureRef.current = currentRequestSignature
+    runVersionRef.current += 1
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    const activeTaskId = activeTaskIdRef.current
+    activeTaskIdRef.current = null
+    if (activeTaskId) void apiClient.cancelAnalysis(activeTaskId)
+    setStatus('idle')
+    setTaskId(null)
+    setStage('等待生成...')
+    setStageMessage('')
+    setPercent(0)
+    setInsightText(null)
+    setStructuredInsight(null)
+    setSources([])
+    setErrorMessage(null)
+    setDownloadError(null)
+    setReplayMeta(null)
+    setExportNotice(null)
+  }, [currentRequestSignature])
+
+  useEffect(() => {
+    if (remoteFeatureEnabled) return
+    runVersionRef.current += 1
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    const activeTaskId = activeTaskIdRef.current
+    activeTaskIdRef.current = null
+    if (activeTaskId) void apiClient.cancelAnalysis(activeTaskId)
+    setStatus('idle')
+    setTaskId(null)
+    setStage('等待生成...')
+    setStageMessage('')
+    setPercent(0)
+    setInsightText(null)
+    setStructuredInsight(null)
+    setSources([])
+    setErrorMessage(null)
+    setDownloadError(null)
+    setReplayMeta(null)
+    setExportNotice(null)
+  }, [remoteFeatureEnabled])
 
   const handleStartInsight = async (forceSimulatedError?: boolean) => {
     if (!remoteFeatureEnabled) return
-
-    if (unsubscribe) {
-      unsubscribe()
-      setUnsubscribe(null)
-    }
+    const runVersion = runVersionRef.current + 1
+    runVersionRef.current = runVersion
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    const previousTaskId = activeTaskIdRef.current
+    activeTaskIdRef.current = null
+    if (previousTaskId) await apiClient.cancelAnalysis(previousTaskId)
+    if (runVersion !== runVersionRef.current) return
 
     const isSimError = typeof forceSimulatedError === 'boolean' ? forceSimulatedError : simulatedError
 
+    setTaskId(null)
     setStatus('queued')
     setStage('正在创建 AI 生活解读任务...')
     setStageMessage('准备提交参数至分析服务...')
@@ -286,6 +349,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setDownloadError(null)
     setInsightText(null)
     setStructuredInsight(null)
+    setSources([])
     setReplayMeta(null)
     setExportNotice(null)
 
@@ -297,11 +361,16 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       }
       const response = await apiClient.startAnalysis(payload)
       const newTaskId = response.taskId
+      if (runVersion !== runVersionRef.current) {
+        await apiClient.cancelAnalysis(newTaskId)
+        return
+      }
+      activeTaskIdRef.current = newTaskId
       setTaskId(newTaskId)
-      localStorage.setItem('real_raise_active_task', newTaskId)
       setStatus(response.status)
 
       const cleanup = apiClient.subscribeTaskEvents(newTaskId, payload, (evt) => {
+        if (runVersion !== runVersionRef.current) return
         if (evt.type === 'started') {
           setStatus('running')
           setStage('已连接分析引擎')
@@ -316,37 +385,43 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         } else if (evt.type === 'insight') {
           setInsightText(evt.text)
         } else if (evt.type === 'completed') {
+          activeTaskIdRef.current = null
           setStatus('completed')
           setPercent(100)
           setInsightText(evt.insight)
           setSources(evt.sources)
           setReplayMeta(evt.replayMeta ?? null)
-          const struct = evt.structuredInsight || generateMockStructuredInsight(requestPayload)
+          const struct = evt.structuredInsight || generateMockStructuredInsight(payload)
           setStructuredInsight(struct)
           setStage('分析完成')
         } else if (evt.type === 'failed') {
+          activeTaskIdRef.current = null
           setStatus('failed')
           setErrorMessage(evt.message || '解读生成中断，请稍后重试。')
         }
       })
 
-      setUnsubscribe(() => cleanup)
+      if (runVersion === runVersionRef.current) unsubscribeRef.current = cleanup
+      else cleanup()
     } catch (err: any) {
+      if (runVersion !== runVersionRef.current) return
+      activeTaskIdRef.current = null
       setStatus('failed')
       setErrorMessage(err.message || '连接服务器异常，无法创建分析任务。')
     }
   }
 
   const handleCancel = async () => {
-    if (unsubscribe) {
-      unsubscribe()
-      setUnsubscribe(null)
-    }
-    if (taskId) {
-      await apiClient.cancelAnalysis(taskId)
-    }
+    runVersionRef.current += 1
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    const activeTaskId = activeTaskIdRef.current ?? taskId
+    activeTaskIdRef.current = null
+    if (activeTaskId) await apiClient.cancelAnalysis(activeTaskId)
+    setTaskId(null)
     setStatus('cancelled')
     setStage('任务已取消')
+    setStageMessage('')
     setPercent(0)
   }
 
@@ -449,12 +524,36 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             <p>
               结合官方 CPI 数据与您的收支输入，生成定制化 AI 生活解读报告。
             </p>
-            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+            {!serverLiveConfigured && (
+              <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+            )}
+            {serverLiveConfigured && (
+              <label className="api-key-model-label" htmlFor="server-analysis-model-select">
+                分析模型
+                <select
+                  id="server-analysis-model-select"
+                  className="api-key-model-select"
+                  value={selectedModel}
+                  onChange={(event) => {
+                    const model = event.target.value
+                    if (model === '' || model === 'deepseek-v4-flash' || model === 'deepseek-v4-pro') {
+                      setSelectedModel(model)
+                    }
+                  }}
+                >
+                  <option value="">跟随平台默认</option>
+                  <option value="deepseek-v4-flash">Flash 省额度</option>
+                  <option value="deepseek-v4-pro">Pro 高质量</option>
+                </select>
+              </label>
+            )}
             <button className="btn-generate-insight" onClick={() => handleStartInsight()} type="button">
-              <Sparkles size={16} /> {keyConfigured ? '生成 AI 生活解读' : '生成解读'}
+              <Sparkles size={16} /> {serverLiveConfigured || keyConfigured ? '生成 AI 生活解读' : '生成解读'}
             </button>
             <span className="quota-hint">
-              {keyConfigured
+              {serverLiveConfigured
+                ? '由受限的 Cloudflare Worker 服务端调用；项目 Key 不进入浏览器，超限时自动回放'
+                : keyConfigured
                 ? '由你的 Key 直接调用分析平台，用量计入你自己的账号'
                 : '未填 Key：预设案例优先播放真实任务的存档回放（可核验、零额度），其余输入用本地演示数据'}
             </span>
@@ -714,12 +813,14 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           )}
 
           {/* 看完演示后想换成自己的 Key 重跑，入口留在结果下方。 */}
-          {!keyConfigured && <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />}
+          {!serverLiveConfigured && !keyConfigured && (
+            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          )}
 
           <div className="insight-action-footer">
             <span className="footnote-text">数据来源：权威公开统计数据库 & 本地精准算表</span>
             <div className="footer-actions">
-              {import.meta.env.DEV && keyConfigured && !replayMeta && (
+              {import.meta.env.DEV && !serverLiveConfigured && keyConfigured && !replayMeta && (
                 <button className="btn-export-replay" onClick={handleExportReplay} type="button">
                   <Download size={13} /> 导出回放包（dev）
                 </button>
@@ -741,7 +842,9 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             </div>
           </div>
           {/* Key 无效时失败信息在这里出现，改 Key 的入口必须也在这里。 */}
-          <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          {!serverLiveConfigured && (
+            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          )}
           <button className="btn-retry" onClick={() => handleStartInsight(false)} type="button">
             <RefreshCw size={14} /> 重新尝试
           </button>
@@ -749,7 +852,9 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       ) : status === 'cancelled' ? (
         <div className="insight-body cancelled-state">
           <p className="cancelled-note">任务已取消。您的本地输入与精准计算数字已被完整保留。</p>
-          <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          {!serverLiveConfigured && (
+            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          )}
           <button className="btn-restart" onClick={() => handleStartInsight()} type="button">
             <Sparkles size={14} /> 重新生成解读
           </button>

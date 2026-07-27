@@ -93,6 +93,8 @@ export type AgentTaskEvent =
       structuredInsight?: RealRaiseInsight
       /** 存在即表示本次结果来自真实任务存档回放，UI 必须显式标注。 */
       replayMeta?: { scenarioId: string; vendorTaskId: string; recordedAt: string }
+      /** Server Live 的小型文本产物只保存在当前浏览器会话。 */
+      artifacts?: Record<string, string>
     }
   | { type: 'failed'; taskId: string; code: string; message: string; retryable: boolean }
 
