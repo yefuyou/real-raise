@@ -4,7 +4,12 @@ import type {
   StartAnalysisRequest,
 } from './realRaiseContract'
 
-const API_BASE_URL = String(import.meta.env.VITE_ANALYSIS_API_URL ?? '').trim().replace(/\/+$/, '')
+declare const __REAL_RAISE_ANALYSIS_API_URL__: string | undefined
+
+const configuredApiUrl = typeof __REAL_RAISE_ANALYSIS_API_URL__ === 'string'
+  ? __REAL_RAISE_ANALYSIS_API_URL__
+  : ''
+const API_BASE_URL = configuredApiUrl.trim().replace(/\/+$/, '')
 const MAX_TASKS = 5
 
 type ServerTask = {
