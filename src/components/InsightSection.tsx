@@ -22,6 +22,7 @@ import { apiClient, generateMockStructuredInsight } from '../api/apiClient'
 import { hasApiKey } from '../api/apiKeyStore'
 import { requestSignature } from '../api/requestSignature'
 import { ApiKeyPanel } from './ApiKeyPanel'
+import { JudgeAccessPanel } from './JudgeAccessPanel'
 import type {
   AgentTaskStatus,
   AnalysisModel,
@@ -248,7 +249,10 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [simulatedError] = useState<boolean>(false)
   const serverLiveConfigured = apiClient.getActiveMode() === 'server-live'
-  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => serverLiveConfigured || hasApiKey())
+  const [judgeUnlocked, setJudgeUnlocked] = useState<boolean>(false)
+  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => (
+    serverLiveConfigured ? false : hasApiKey()
+  ))
   const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
   /** 非空 = 本次结果来自真实任务存档回放（必须显式标注，不冒充实时）。 */
   const [replayMeta, setReplayMeta] = useState<{ scenarioId: string; vendorTaskId: string; recordedAt: string } | null>(null)
@@ -406,6 +410,10 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     } catch (err: any) {
       if (runVersion !== runVersionRef.current) return
       activeTaskIdRef.current = null
+      if (serverLiveConfigured) {
+        setJudgeUnlocked(false)
+        setKeyConfigured(false)
+      }
       setStatus('failed')
       setErrorMessage(err.message || '连接服务器异常，无法创建分析任务。')
     }
@@ -528,31 +536,50 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
             )}
             {serverLiveConfigured && (
-              <label className="api-key-model-label" htmlFor="server-analysis-model-select">
-                分析模型
-                <select
-                  id="server-analysis-model-select"
-                  className="api-key-model-select"
-                  value={selectedModel}
-                  onChange={(event) => {
-                    const model = event.target.value
-                    if (model === '' || model === 'deepseek-v4-flash' || model === 'deepseek-v4-pro') {
-                      setSelectedModel(model)
-                    }
+              <>
+                <JudgeAccessPanel
+                  unlocked={judgeUnlocked}
+                  onChange={(unlocked) => {
+                    setJudgeUnlocked(unlocked)
+                    setKeyConfigured(unlocked)
                   }}
-                >
-                  <option value="">跟随平台默认</option>
-                  <option value="deepseek-v4-flash">Flash 省额度</option>
-                  <option value="deepseek-v4-pro">Pro 高质量</option>
-                </select>
-              </label>
+                />
+                {judgeUnlocked && (
+                  <label className="api-key-model-label" htmlFor="server-analysis-model-select">
+                    分析模型
+                    <select
+                      id="server-analysis-model-select"
+                      className="api-key-model-select"
+                      value={selectedModel}
+                      onChange={(event) => {
+                        const model = event.target.value
+                        if (model === '' || model === 'deepseek-v4-flash' || model === 'deepseek-v4-pro') {
+                          setSelectedModel(model)
+                        }
+                      }}
+                    >
+                      <option value="">跟随平台默认</option>
+                      <option value="deepseek-v4-flash">Flash 省额度</option>
+                      <option value="deepseek-v4-pro">Pro 高质量</option>
+                    </select>
+                  </label>
+                )}
+              </>
             )}
-            <button className="btn-generate-insight" onClick={() => handleStartInsight()} type="button">
-              <Sparkles size={16} /> {serverLiveConfigured || keyConfigured ? '生成 AI 生活解读' : '生成解读'}
+            <button
+              className="btn-generate-insight"
+              onClick={() => handleStartInsight()}
+              type="button"
+              disabled={serverLiveConfigured && !judgeUnlocked}
+              title={serverLiveConfigured && !judgeUnlocked ? '请先进入评委模式' : undefined}
+            >
+              <Sparkles size={16} /> {serverLiveConfigured ? '评委生成真实 AI 解读' : keyConfigured ? '生成 AI 生活解读' : '生成解读'}
             </button>
             <span className="quota-hint">
               {serverLiveConfigured
-                ? '由受限的 Cloudflare Worker 服务端调用；项目 Key 不进入浏览器，超限时自动回放'
+                ? judgeUnlocked
+                  ? '评委模式已开启：由 Cloudflare Worker 服务端调用，项目 Key 不进入浏览器'
+                  : '仅评委模式可发起真实调用；项目 API Key 保存在服务端'
                 : keyConfigured
                 ? '由你的 Key 直接调用分析平台，用量计入你自己的账号'
                 : '未填 Key：预设案例优先播放真实任务的存档回放（可核验、零额度），其余输入用本地演示数据'}
@@ -602,7 +629,9 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           {replayMeta && (
             <p className="replay-banner">
               真实任务存档回放 · 任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
-              评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。
+              {serverLiveConfigured
+                ? '评委可在分析平台任务后台核验；实时服务恢复后可再次生成。'
+                : '评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。'}
             </p>
           )}
 
@@ -845,6 +874,15 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           {!serverLiveConfigured && (
             <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
           )}
+          {serverLiveConfigured && !judgeUnlocked && (
+            <JudgeAccessPanel
+              unlocked={judgeUnlocked}
+              onChange={(unlocked) => {
+                setJudgeUnlocked(unlocked)
+                setKeyConfigured(unlocked)
+              }}
+            />
+          )}
           <button className="btn-retry" onClick={() => handleStartInsight(false)} type="button">
             <RefreshCw size={14} /> 重新尝试
           </button>
@@ -854,6 +892,15 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           <p className="cancelled-note">任务已取消。您的本地输入与精准计算数字已被完整保留。</p>
           {!serverLiveConfigured && (
             <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          )}
+          {serverLiveConfigured && !judgeUnlocked && (
+            <JudgeAccessPanel
+              unlocked={judgeUnlocked}
+              onChange={(unlocked) => {
+                setJudgeUnlocked(unlocked)
+                setKeyConfigured(unlocked)
+              }}
+            />
           )}
           <button className="btn-restart" onClick={() => handleStartInsight()} type="button">
             <Sparkles size={14} /> 重新生成解读

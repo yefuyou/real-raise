@@ -39,6 +39,7 @@ import {
   type DetailedSpendBreakdown,
   type SourceReference,
 } from './api/realRaiseContract'
+import { isServerAnalysisConfigured } from './api/serverAnalysisClient'
 
 const initialInput = DEMO_SCENARIOS[0].input
 
@@ -77,7 +78,7 @@ function App() {
   const [payslip, setPayslip] = useState<PayslipInput>(EMPTY_PAYSLIP)
   const [detailedBreakdown, setDetailedBreakdown] = useState<DetailedSpendBreakdown>(initialBreakdown)
   const [isDirty, setIsDirty] = useState(false)
-  const [remoteFeatureEnabled, setRemoteFeatureEnabled] = useState(false)
+  const [remoteFeatureEnabled, setRemoteFeatureEnabled] = useState(true)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [activeSources, setActiveSources] = useState<SourceReference[]>([])
   const resultRef = useRef<HTMLElement>(null)
@@ -599,7 +600,10 @@ function App() {
       />
 
       <footer className="footer-note">
-        <span><ShieldCheck size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} /> REAL RAISE · 确定性计算底座 + 公开统计 Mock 解读</span>
+        <span>
+          <ShieldCheck size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} />
+          REAL RAISE · 确定性计算底座 + {isServerAnalysisConfigured() ? 'InfiniSynapse Server API 解读' : '公开统计演示解读'}
+        </span>
         <span>所有金额与计算结果基于个人输入，不构成专业财务建议。</span>
       </footer>
     </main>

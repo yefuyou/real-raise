@@ -1,2 +1,4 @@
 # Copy to .dev.vars for local Worker testing. Never commit .dev.vars.
 INFINISYNAPSE_API_KEY=replace-with-your-own-key
+JUDGE_ACCESS_CODE=replace-with-a-long-judge-passphrase
+JUDGE_TOKEN_SECRET=replace-with-at-least-32-random-bytes

@@ -4,6 +4,7 @@ import { UpstreamError, runInfiniSynapseAnalysis } from './infiniSynapse.mjs'
 const MAX_BODY_BYTES = 20_000
 const DEFAULT_TIMEOUT_MS = 180_000
 const LEASE_TTL_MS = 4 * 60_000
+const DEFAULT_JUDGE_SESSION_TTL_MINUTES = 6 * 60
 
 function shanghaiDate(timestamp = Date.now()) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -109,10 +110,81 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Real-Raise-Session',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Real-Raise-Session, X-Real-Raise-Judge',
     'Access-Control-Expose-Headers': 'X-Real-Raise-Task-Id',
     'Access-Control-Max-Age': '600',
     Vary: 'Origin',
+  }
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function base64UrlToBytes(value) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4)
+  const binary = atob(padded)
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
+}
+
+function constantTimeEqual(left, right) {
+  if (left.length !== right.length) return false
+  let difference = 0
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left[index] ^ right[index]
+  }
+  return difference === 0
+}
+
+async function hmac(secret, value) {
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(value)))
+}
+
+async function secureStringEqual(left, right) {
+  const [leftDigest, rightDigest] = await Promise.all([
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(left)),
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(right)),
+  ])
+  return constantTimeEqual(new Uint8Array(leftDigest), new Uint8Array(rightDigest))
+}
+
+export async function createJudgeToken(secret, now = Date.now(), ttlMinutes = DEFAULT_JUDGE_SESSION_TTL_MINUTES) {
+  const expiresAt = now + positiveInteger(ttlMinutes, DEFAULT_JUDGE_SESSION_TTL_MINUTES, 24 * 60) * 60_000
+  const payload = bytesToBase64Url(new TextEncoder().encode(JSON.stringify({
+    v: 1,
+    role: 'judge',
+    exp: expiresAt,
+  })))
+  const signature = bytesToBase64Url(await hmac(secret, payload))
+  return { token: `${payload}.${signature}`, expiresAt }
+}
+
+export async function verifyJudgeToken(token, secret, now = Date.now()) {
+  if (!token || !secret) return false
+  const parts = token.split('.')
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return false
+  try {
+    const expectedSignature = await hmac(secret, parts[0])
+    const suppliedSignature = base64UrlToBytes(parts[1])
+    if (!constantTimeEqual(expectedSignature, suppliedSignature)) return false
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(parts[0])))
+    return payload?.v === 1
+      && payload?.role === 'judge'
+      && typeof payload?.exp === 'number'
+      && payload.exp > now
+  } catch {
+    return false
   }
 }
 
@@ -147,6 +219,65 @@ async function readRequestJson(request, origin) {
   } catch {
     throw new InputError('请求体不是有效 JSON')
   }
+}
+
+function bearerToken(request) {
+  const authorization = request.headers.get('authorization') ?? ''
+  return authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+}
+
+async function handleJudgeSession(request, env) {
+  const origin = request.headers.get('origin') ?? ''
+  if (!origin || !allowedOrigins(env).has(origin)) {
+    return errorResponse('', 403, 'ORIGIN_NOT_ALLOWED', '请求来源不在允许列表。')
+  }
+  if (!env.JUDGE_ACCESS_CODE || !env.JUDGE_TOKEN_SECRET) {
+    return errorResponse(origin, 503, 'JUDGE_AUTH_NOT_CONFIGURED', '评委验证服务尚未配置。')
+  }
+
+  const rateKey = request.headers.get('CF-Connecting-IP')
+    || request.headers.get('X-Real-Raise-Session')
+    || 'anonymous'
+  const rateResult = await env.JUDGE_AUTH_RATE_LIMITER.limit({ key: rateKey })
+  if (!rateResult.success) {
+    return errorResponse(origin, 429, 'JUDGE_AUTH_RATE_LIMITED', '评委口令尝试过多，请一分钟后重试。')
+  }
+
+  let body
+  try {
+    body = await readRequestJson(request, origin)
+  } catch (error) {
+    if (error instanceof InputError) {
+      return errorResponse(origin, error.status ?? 400, error.code ?? 'INVALID_INPUT', error.message)
+    }
+    return errorResponse(origin, 400, 'INVALID_REQUEST', '请求无法解析。')
+  }
+  const keys = body && typeof body === 'object' && !Array.isArray(body) ? Object.keys(body) : []
+  if (
+    keys.length !== 1
+    || keys[0] !== 'code'
+    || typeof body.code !== 'string'
+    || body.code.length < 8
+    || body.code.length > 128
+  ) {
+    return errorResponse(origin, 422, 'INVALID_JUDGE_CODE', '评委口令格式无效。')
+  }
+  if (!(await secureStringEqual(body.code, env.JUDGE_ACCESS_CODE))) {
+    return errorResponse(origin, 401, 'INVALID_JUDGE_CODE', '评委口令不正确。')
+  }
+
+  const session = await createJudgeToken(
+    env.JUDGE_TOKEN_SECRET,
+    Date.now(),
+    env.JUDGE_SESSION_TTL_MINUTES,
+  )
+  return Response.json(session, {
+    status: 200,
+    headers: {
+      ...corsHeaders(origin),
+      'Cache-Control': 'no-store',
+    },
+  })
 }
 
 async function guardStub(env) {
@@ -199,6 +330,11 @@ async function handleAnalysis(request, env) {
   }
   if (!env.INFINISYNAPSE_API_KEY) {
     return errorResponse(origin, 503, 'SERVER_NOT_CONFIGURED', '实时分析服务尚未配置。', true)
+  }
+  // 评委模式由前端显式开启；项目 Key 仍只存在 Worker Secret。
+  // 真实调用还受到来源校验、每分钟限流和每日额度保险丝保护。
+  if (request.headers.get('X-Real-Raise-Judge') !== 'true') {
+    return errorResponse(origin, 403, 'JUDGE_MODE_REQUIRED', '请先进入评委模式。')
   }
 
   let analysisRequest
@@ -313,17 +449,27 @@ export default {
         ok: true,
         service: 'real-raise-api',
         liveEnabled: env.LIVE_ANALYSIS_ENABLED === 'true',
+        judgeAccessConfigured: Boolean(env.JUDGE_ACCESS_CODE && env.JUDGE_TOKEN_SECRET),
       }, { headers: { 'Cache-Control': 'no-store' } })
     }
-    if (request.method === 'OPTIONS' && url.pathname === '/api/analysis') {
+    if (request.method === 'OPTIONS' && (
+      url.pathname === '/api/analysis'
+      || url.pathname === '/api/judge/session'
+    )) {
       const origin = request.headers.get('origin') ?? ''
       if (!origin || !allowedOrigins(env).has(origin)) {
         return new Response(null, { status: 403 })
       }
       return new Response(null, { status: 204, headers: corsHeaders(origin) })
     }
+    if (request.method === 'POST' && url.pathname === '/api/judge/session') {
+      return handleJudgeSession(request, env)
+    }
     if (request.method === 'POST' && url.pathname === '/api/analysis') {
       return handleAnalysis(request, env)
+    }
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(request)
     }
     return Response.json({ error: 'not found' }, { status: 404 })
   },

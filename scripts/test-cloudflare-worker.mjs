@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
-import { UsageGuard } from '../worker/index.mjs'
+import { webcrypto } from 'node:crypto'
+import worker, { createJudgeToken, UsageGuard, verifyJudgeToken } from '../worker/index.mjs'
 import { InputError, calculateLivingCost, validateAnalysisRequest } from '../worker/core.mjs'
+
+globalThis.crypto ??= webcrypto
 
 const validRequest = {
   input: {
@@ -82,3 +85,64 @@ const exhausted = await guard.fetch(guardRequest('/reserve', {
 assert.equal(exhausted.status, 429)
 assert.equal((await exhausted.json()).code, 'DAILY_QUOTA_REACHED')
 console.log('PASS Durable Object guard enforces concurrency and exact daily ceiling')
+
+const now = Date.now()
+const judgeSession = await createJudgeToken('test-signing-secret', now, 10)
+assert.equal(await verifyJudgeToken(judgeSession.token, 'test-signing-secret', now + 1), true)
+assert.equal(await verifyJudgeToken(judgeSession.token, 'wrong-secret', now + 1), false)
+assert.equal(await verifyJudgeToken(judgeSession.token, 'test-signing-secret', judgeSession.expiresAt), false)
+assert.equal(await verifyJudgeToken(`${judgeSession.token}tampered`, 'test-signing-secret', now + 1), false)
+console.log('PASS Judge sessions are signed, secret-bound, tamper-resistant, and expiring')
+
+const authEnv = {
+  ALLOWED_ORIGINS: 'https://real-raise.example',
+  LIVE_ANALYSIS_ENABLED: 'true',
+  INFINISYNAPSE_API_KEY: 'server-only-vendor-key',
+  JUDGE_ACCESS_CODE: 'judge-access-2026',
+  JUDGE_TOKEN_SECRET: 'test-signing-secret',
+  JUDGE_SESSION_TTL_MINUTES: '10',
+  JUDGE_AUTH_RATE_LIMITER: { limit: async () => ({ success: true }) },
+}
+const judgeRequest = (body) => new Request('https://real-raise-api.example/api/judge/session', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Origin: 'https://real-raise.example',
+  },
+  body: JSON.stringify(body),
+})
+
+const invalidLogin = await worker.fetch(judgeRequest({ code: 'wrong-code' }), authEnv)
+assert.equal(invalidLogin.status, 401)
+
+const validLogin = await worker.fetch(judgeRequest({ code: authEnv.JUDGE_ACCESS_CODE }), authEnv)
+assert.equal(validLogin.status, 200)
+const validLoginBody = await validLogin.json()
+assert.equal(await verifyJudgeToken(validLoginBody.token, authEnv.JUDGE_TOKEN_SECRET), true)
+
+const unauthenticatedAnalysis = await worker.fetch(new Request('https://real-raise-api.example/api/analysis', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Origin: 'https://real-raise.example',
+  },
+  body: JSON.stringify(validRequest),
+}), authEnv)
+assert.equal(unauthenticatedAnalysis.status, 403)
+assert.equal((await unauthenticatedAnalysis.json()).error.code, 'JUDGE_MODE_REQUIRED')
+
+const preflight = await worker.fetch(new Request('https://real-raise-api.example/api/analysis', {
+  method: 'OPTIONS',
+  headers: { Origin: 'https://real-raise.example' },
+}), authEnv)
+assert.equal(preflight.status, 204)
+assert.match(preflight.headers.get('Access-Control-Allow-Headers') ?? '', /X-Real-Raise-Judge/)
+console.log('PASS Worker judge session compatibility, judge-mode gate, and CORS')
+
+const assetResponse = await worker.fetch(new Request('https://real-raise-api.example/'), {
+  ...authEnv,
+  ASSETS: { fetch: async () => new Response('static asset') },
+})
+assert.equal(assetResponse.status, 200)
+assert.equal(await assetResponse.text(), 'static asset')
+console.log('PASS Worker serves static assets alongside API routes')

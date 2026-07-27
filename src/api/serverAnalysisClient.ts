@@ -175,6 +175,7 @@ export async function startServerAnalysis(request: StartAnalysisRequest): Promis
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Real-Raise-Judge': 'true',
         'X-Real-Raise-Session': makeSessionId(),
       },
       body: JSON.stringify(request),
@@ -183,7 +184,10 @@ export async function startServerAnalysis(request: StartAnalysisRequest): Promis
   } catch {
     throw new ServerAnalysisUnavailable('无法连接实时分析服务。', 'SERVER_UNREACHABLE', 503, true)
   }
-  if (!response.ok) throw await readServerError(response)
+  if (!response.ok) {
+    const error = await readServerError(response)
+    throw error
+  }
 
   const id = response.headers.get('X-Real-Raise-Task-Id') || crypto.randomUUID()
   rememberTask({
