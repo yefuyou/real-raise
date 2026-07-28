@@ -85,12 +85,15 @@ export class RealRaiseApiClient {
     return loadApiKey() ? 'live' : 'mock'
   }
 
-  public async startAnalysis(request: StartAnalysisRequest): Promise<StartAnalysisResponse> {
+  public async startAnalysis(
+    request: StartAnalysisRequest,
+    serverMode: 'partner' | 'judge' = 'judge'
+  ): Promise<StartAnalysisResponse> {
     if (this.useMock) return this.mockStartAnalysis(request)
 
     if (isServerAnalysisConfigured()) {
       try {
-        const handle = await startServerAnalysis(request)
+        const handle = await startServerAnalysis(request, serverMode)
         return {
           taskId: handle.taskId,
           status: handle.status,

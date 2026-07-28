@@ -2413,3 +2413,45 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
   margin-top: 8px;
 }
 
+/* --- 双模式显示与按钮样式 --- */
+.user-mode-controls, .judge-active-box {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mode-identity-tag {
+  margin-bottom: 2px;
+}
+.identity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.identity-badge.user-badge {
+  background: rgba(33, 150, 243, 0.1);
+  color: #1976d2;
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+.identity-badge.judge-badge {
+  background: rgba(156, 39, 176, 0.1);
+  color: #7b1fa2;
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+.btn-user-mode {
+  background: #1976d2 !important;
+}
+.btn-user-mode:hover {
+  background: #1565c0 !important;
+}
+.btn-judge-mode {
+  background: #7b1fa2 !important;
+}
+.btn-judge-mode:hover {
+  background: #6a1b9a !important;
+}
+

@@ -625,6 +625,7 @@ async function main() {
 
     await client.logout()
     assert(lastState.authenticated === false, '退出登录后必须恢复为未登录')
+    assert(lastState.canRunAnalysis === false, '退出登录后 canRunAnalysis 必须重置为 false')
     unsub()
   })
 
@@ -646,6 +647,20 @@ async function main() {
 
     const cancelled = formatFriendlyAuthErrorMessage('LOGIN_CANCELLED')
     assert(cancelled.includes('登录授权已取消'), 'LOGIN_CANCELLED 应提示取消授权')
+  })
+
+  await runTest('12.3 AuthClient canRunAnalysis 标志与双模式配置测试', () => {
+    const client = new AuthClient({ useMock: true })
+    assert(client.getState().canRunAnalysis === false, '未登录初始 canRunAnalysis 必须为 false')
+
+    client.setMockUser({ id: '1002', name: '李四' }, true)
+    assert(client.getState().canRunAnalysis === true, 'canRunAnalysis 为 true 时允许调用个人模式')
+
+    client.setMockUser({ id: '1003', name: '王五' }, false)
+    assert(client.getState().canRunAnalysis === false, 'canRunAnalysis 为 false 时禁用个人模式调用')
+
+    client.setMockUser(null)
+    assert(client.getState().canRunAnalysis === false, 'setMockUser(null) 时 canRunAnalysis 必须重置为 false')
   })
 
   console.log(`\n================ ALL ${passedCount} AUTOMATED TESTS PASSED ================\n`)

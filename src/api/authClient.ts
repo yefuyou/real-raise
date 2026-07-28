@@ -30,6 +30,7 @@ export type AuthState = {
   authenticated: boolean
   user: AuthUser | null
   loading: boolean
+  canRunAnalysis?: boolean
   error?: string | null
   errorCode?: string | null
 }
@@ -38,6 +39,7 @@ export class AuthClient {
   private state: AuthState = {
     authenticated: false,
     user: null,
+    canRunAnalysis: false,
     loading: true,
     error: null,
     errorCode: null,
@@ -121,6 +123,7 @@ export class AuthClient {
           this.setState({
             authenticated: true,
             user,
+            canRunAnalysis: typeof data.canRunAnalysis === 'boolean' ? data.canRunAnalysis : true,
             loading: false,
           })
           return this.state
@@ -129,6 +132,7 @@ export class AuthClient {
       this.setState({
         authenticated: false,
         user: null,
+        canRunAnalysis: false,
         loading: false,
       })
       return this.state
@@ -137,6 +141,7 @@ export class AuthClient {
       this.setState({
         authenticated: false,
         user: null,
+        canRunAnalysis: false,
         loading: false,
       })
       return this.state
@@ -157,7 +162,7 @@ export class AuthClient {
    */
   public async logout(): Promise<void> {
     if (this.useMock) {
-      this.setState({ authenticated: false, user: null, loading: false })
+      this.setState({ authenticated: false, user: null, canRunAnalysis: false, loading: false })
       return
     }
 
@@ -173,6 +178,7 @@ export class AuthClient {
       this.setState({
         authenticated: false,
         user: null,
+        canRunAnalysis: false,
         loading: false,
         error: null,
         errorCode: null,
@@ -183,7 +189,7 @@ export class AuthClient {
   /**
    * Mock 状态设置（测试与演示用）
    */
-  public setMockUser(user: AuthUser | null) {
+  public setMockUser(user: AuthUser | null, canRunAnalysis: boolean = true) {
     if (user) {
       this.setState({
         authenticated: true,
@@ -194,6 +200,7 @@ export class AuthClient {
           avatar: user.avatar || user.avatarUrl,
           avatarUrl: user.avatarUrl || user.avatar,
         },
+        canRunAnalysis,
         loading: false,
         error: null,
         errorCode: null,
@@ -202,6 +209,7 @@ export class AuthClient {
       this.setState({
         authenticated: false,
         user: null,
+        canRunAnalysis: false,
         loading: false,
         error: null,
         errorCode: null,

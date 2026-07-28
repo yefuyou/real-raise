@@ -26,7 +26,7 @@ import { requestSignature } from '../api/requestSignature'
 import { ApiKeyPanel } from './ApiKeyPanel'
 import { JudgeAccessPanel } from './JudgeAccessPanel'
 import { PartnerSsoPanel } from './PartnerSsoPanel'
-import { formatFriendlyAuthErrorMessage } from '../api/authClient'
+import { authClient, formatFriendlyAuthErrorMessage, type AuthState } from '../api/authClient'
 import type {
   AgentTaskStatus,
   AnalysisModel,
@@ -258,6 +258,16 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     serverLiveConfigured ? false : hasApiKey()
   ))
   const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
+  const [userSelectedModel, setUserSelectedModel] = useState<AnalysisModel | ''>('')
+  const [judgeSelectedModel, setJudgeSelectedModel] = useState<AnalysisModel | ''>('')
+  const [authState, setAuthState] = useState<AuthState>(() => authClient.getState())
+  const lastServerModeRef = useRef<'partner' | 'judge'>('partner')
+
+  useEffect(() => {
+    const unsub = authClient.subscribe((st) => setAuthState(st))
+    void authClient.checkAuth()
+    return unsub
+  }, [])
   /** 非空 = 本次结果来自真实任务存档回放（必须显式标注，不冒充实时）。 */
   const [replayMeta, setReplayMeta] = useState<{ scenarioId: string; vendorTaskId: string; recordedAt: string } | null>(null)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
@@ -335,8 +345,14 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setExportNotice(null)
   }, [remoteFeatureEnabled])
 
-  const handleStartInsight = async (forceSimulatedError?: boolean) => {
+  const handleStartInsight = async (
+    serverMode?: 'partner' | 'judge',
+    forceSimulatedError?: boolean
+  ) => {
     if (!remoteFeatureEnabled) return
+    const activeServerMode = serverMode ?? lastServerModeRef.current
+    lastServerModeRef.current = activeServerMode
+
     const runVersion = runVersionRef.current + 1
     runVersionRef.current = runVersion
     unsubscribeRef.current?.()
@@ -347,6 +363,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     if (runVersion !== runVersionRef.current) return
 
     const isSimError = typeof forceSimulatedError === 'boolean' ? forceSimulatedError : simulatedError
+    const activeModel = activeServerMode === 'partner' ? userSelectedModel : (judgeSelectedModel || selectedModel)
 
     setTaskId(null)
     setStatus('queued')
@@ -365,9 +382,9 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       const payload: StartAnalysisRequest = {
         ...requestPayload,
         simulatedError: isSimError,
-        ...(selectedModel ? { analysisModel: selectedModel } : {}),
+        ...(activeModel ? { analysisModel: activeModel } : {}),
       }
-      const response = await apiClient.startAnalysis(payload)
+      const response = await apiClient.startAnalysis(payload, activeServerMode)
       const newTaskId = response.taskId
       if (runVersion !== runVersionRef.current) {
         await apiClient.cancelAnalysis(newTaskId)
@@ -537,8 +554,42 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               结合官方 CPI 数据与您的收支输入，生成定制化 AI 生活解读报告。
             </p>
 
-            <PartnerSsoPanel />
+            {/* --- InfiniSynapse SSO 用户模式主区域 --- */}
+            <div className="analysis-mode-section partner-user-section">
+              <PartnerSsoPanel />
+              {authState.authenticated && authState.canRunAnalysis !== false && (
+                <div className="user-mode-controls">
+                  <div className="mode-identity-tag">
+                    <span className="identity-badge user-badge">👤 当前模式：使用我的 InfiniSynapse 账号（消耗个人额度）</span>
+                  </div>
+                  <label className="api-key-model-label" htmlFor="user-analysis-model-select">
+                    用户模式模型选择：
+                    <select
+                      id="user-analysis-model-select"
+                      className="api-key-model-select"
+                      value={userSelectedModel}
+                      onChange={(event) => {
+                        const model = event.target.value as AnalysisModel | ''
+                        setUserSelectedModel(model)
+                      }}
+                    >
+                      <option value="">跟随平台默认</option>
+                      <option value="deepseek-v4-flash">Flash 省额度</option>
+                      <option value="deepseek-v4-pro">Pro 高质量</option>
+                    </select>
+                  </label>
+                  <button
+                    className="btn-generate-insight btn-user-mode"
+                    onClick={() => handleStartInsight('partner')}
+                    type="button"
+                  >
+                    <Sparkles size={16} /> 使用我的 InfiniSynapse 账号生成 AI 深度解读
+                  </button>
+                </div>
+              )}
+            </div>
 
+            {/* --- 高级 / 开发者设置 / 评委模式折叠区域 --- */}
             <details className="developer-byok-details">
               <summary className="developer-byok-summary">
                 <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
@@ -548,7 +599,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                   <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
                 )}
                 {serverLiveConfigured && (
-                  <>
+                  <div className="judge-mode-controls">
                     <JudgeAccessPanel
                       unlocked={judgeUnlocked}
                       onChange={(unlocked) => {
@@ -557,44 +608,60 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                       }}
                     />
                     {judgeUnlocked && (
-                      <label className="api-key-model-label" htmlFor="server-analysis-model-select">
-                        分析模型
-                        <select
-                          id="server-analysis-model-select"
-                          className="api-key-model-select"
-                          value={selectedModel}
-                          onChange={(event) => {
-                            const model = event.target.value
-                            if (model === '' || model === 'deepseek-v4-flash' || model === 'deepseek-v4-pro') {
-                              setSelectedModel(model)
-                            }
-                          }}
+                      <div className="judge-active-box">
+                        <div className="mode-identity-tag">
+                          <span className="identity-badge judge-badge">⚖️ 当前模式：以评委身份发起（使用服务端评委 Key）</span>
+                        </div>
+                        <label className="api-key-model-label" htmlFor="judge-analysis-model-select">
+                          评委模式模型选择：
+                          <select
+                            id="judge-analysis-model-select"
+                            className="api-key-model-select"
+                            value={judgeSelectedModel}
+                            onChange={(event) => {
+                              const model = event.target.value as AnalysisModel | ''
+                              setJudgeSelectedModel(model)
+                            }}
+                          >
+                            <option value="">跟随平台默认</option>
+                            <option value="deepseek-v4-flash">Flash 省额度</option>
+                            <option value="deepseek-v4-pro">Pro 高质量</option>
+                          </select>
+                        </label>
+                        <button
+                          className="btn-generate-insight btn-judge-mode"
+                          onClick={() => handleStartInsight('judge')}
+                          type="button"
                         >
-                          <option value="">跟随平台默认</option>
-                          <option value="deepseek-v4-flash">Flash 省额度</option>
-                          <option value="deepseek-v4-pro">Pro 高质量</option>
-                        </select>
-                      </label>
+                          <Zap size={16} /> 以评委身份发起解读 (评委密钥模式)
+                        </button>
+                      </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             </details>
 
-            <button
-              className="btn-generate-insight"
-              onClick={() => handleStartInsight()}
-              type="button"
-              disabled={serverLiveConfigured && !judgeUnlocked}
-              title={serverLiveConfigured && !judgeUnlocked ? '请先进入评委模式' : undefined}
-            >
-              <Sparkles size={16} /> {serverLiveConfigured ? '评委生成真实 AI 解读' : keyConfigured ? '生成 AI 生活解读' : '生成 AI 深度解读报告'}
-            </button>
+            {/* --- 兜底按钮：未登录且未解锁评委模式时 --- */}
+            {(!authState.authenticated || authState.canRunAnalysis === false) && !judgeUnlocked && (
+              <button
+                className="btn-generate-insight"
+                onClick={() => handleStartInsight('partner')}
+                type="button"
+              >
+                <Sparkles size={16} /> {serverLiveConfigured ? '生成 AI 深度解读报告' : keyConfigured ? '生成 AI 生活解读' : '生成解读'}
+              </button>
+            )}
+
             <span className="quota-hint">
               {serverLiveConfigured
-                ? judgeUnlocked
-                  ? '评委模式已开启：由 Cloudflare Worker 服务端调用，项目 Key 不进入浏览器'
-                  : '项目 Partner API Key 保存在服务端，安全隔离不进入浏览器'
+                ? judgeUnlocked && authState.authenticated
+                  ? '双模式独立已就绪：用户模式消耗个人积分，评委模式使用服务端评委 Key，模式显式可选，不自动混用'
+                  : judgeUnlocked
+                  ? '评委模式已解锁：由 Cloudflare Worker 服务端调用项目 Key，浏览器不接触密钥'
+                  : authState.authenticated
+                  ? 'InfiniSynapse 账号已连接：使用您的平台积分在服务端调用 AI 分析'
+                  : '支持 InfiniSynapse Partner SSO 登录 / 回放存档 / 本地 Mock 演示'
                 : keyConfigured
                 ? '由你的 Key 直接调用分析平台，用量计入你自己的账号'
                 : '优先使用 Partner SSO / 回放存档，无 Key 也可使用本地演示 Mock'}
@@ -905,7 +972,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               )}
             </div>
           </details>
-          <button className="btn-retry" onClick={() => handleStartInsight(false)} type="button">
+          <button className="btn-retry" onClick={() => handleStartInsight(undefined, false)} type="button">
             <RefreshCw size={14} /> 重新尝试
           </button>
         </div>

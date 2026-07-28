@@ -161,7 +161,10 @@ export function isServerAnalysisConfigured(): boolean {
   return API_BASE_URL.length > 0
 }
 
-export async function startServerAnalysis(request: StartAnalysisRequest): Promise<{
+export async function startServerAnalysis(
+  request: StartAnalysisRequest,
+  mode: 'partner' | 'judge' = 'judge'
+): Promise<{
   taskId: string
   status: AgentTaskStatus
 }> {
@@ -170,15 +173,20 @@ export async function startServerAnalysis(request: StartAnalysisRequest): Promis
   }
   const controller = new AbortController()
   let response: Response
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Real-Raise-Mode': mode,
+    'X-Real-Raise-Session': makeSessionId(),
+  }
+  if (mode === 'judge') {
+    headers['X-Real-Raise-Judge'] = 'true'
+  }
+
   try {
     response = await fetch(`${API_BASE_URL}/api/analysis`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Real-Raise-Judge': 'true',
-        'X-Real-Raise-Session': makeSessionId(),
-      },
+      headers,
       body: JSON.stringify(request),
       signal: controller.signal,
     })
