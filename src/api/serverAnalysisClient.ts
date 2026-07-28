@@ -173,6 +173,7 @@ export async function startServerAnalysis(request: StartAnalysisRequest): Promis
   try {
     response = await fetch(`${API_BASE_URL}/api/analysis`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'X-Real-Raise-Judge': 'true',

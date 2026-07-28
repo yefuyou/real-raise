@@ -15,9 +15,13 @@
   },
   "vars": {
     "INFINISYNAPSE_API_BASE_URL": "https://app.infinisynapse.cn",
+    "INFINISYNAPSE_AUTH_BASE_URL": "https://api.infinisynapse.cn/api",
+    "SSO_PUBLIC_ORIGIN": "https://plain-wind-ae46.yefuyou2333.workers.dev",
+    "SSO_COOKIE_SAMESITE": "Lax",
     "LIVE_ANALYSIS_ENABLED": "true",
     "ALLOWED_ORIGINS": "https://plain-wind-ae46.yefuyou2333.workers.dev,http://localhost:5173,http://127.0.0.1:5173",
     "DAILY_LIVE_LIMIT": "10",
+    "PARTNER_DAILY_LIVE_LIMIT": "20",
     "MAX_INFLIGHT": "1",
     "JUDGE_SESSION_TTL_MINUTES": "360"
   },
@@ -25,7 +29,9 @@
     "required": [
       "INFINISYNAPSE_API_KEY",
       "JUDGE_ACCESS_CODE",
-      "JUDGE_TOKEN_SECRET"
+      "JUDGE_TOKEN_SECRET",
+      "INFINI_PARTNER_CLIENT_ID",
+      "INFINI_PARTNER_CLIENT_SECRET"
     ]
   },
   "ratelimits": [
@@ -51,6 +57,10 @@
       {
         "name": "USAGE_GUARD",
         "class_name": "UsageGuard"
+      },
+      {
+        "name": "AUTH_SESSION_STORE",
+        "class_name": "AuthSessionStore"
       }
     ]
   },
@@ -59,6 +69,12 @@
       "tag": "v1",
       "new_sqlite_classes": [
         "UsageGuard"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "AuthSessionStore"
       ]
     }
   ]

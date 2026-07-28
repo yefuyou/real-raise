@@ -2,3 +2,5 @@
 INFINISYNAPSE_API_KEY=replace-with-your-own-key
 JUDGE_ACCESS_CODE=replace-with-a-long-judge-passphrase
 JUDGE_TOKEN_SECRET=replace-with-at-least-32-random-bytes
+INFINI_PARTNER_CLIENT_ID=replace-with-client-id
+INFINI_PARTNER_CLIENT_SECRET=replace-with-client-secret

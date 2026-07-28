@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Sparkles,
   StopCircle,
+  Sliders,
+  SlidersHorizontal,
   TrendingUp,
   Zap,
 } from 'lucide-react'
@@ -23,6 +25,8 @@ import { hasApiKey } from '../api/apiKeyStore'
 import { requestSignature } from '../api/requestSignature'
 import { ApiKeyPanel } from './ApiKeyPanel'
 import { JudgeAccessPanel } from './JudgeAccessPanel'
+import { PartnerSsoPanel } from './PartnerSsoPanel'
+import { formatFriendlyAuthErrorMessage } from '../api/authClient'
 import type {
   AgentTaskStatus,
   AnalysisModel,
@@ -401,7 +405,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         } else if (evt.type === 'failed') {
           activeTaskIdRef.current = null
           setStatus('failed')
-          setErrorMessage(evt.message || '解读生成中断，请稍后重试。')
+          setErrorMessage(formatFriendlyAuthErrorMessage(evt.code, evt.message))
         }
       })
 
@@ -415,7 +419,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         setKeyConfigured(false)
       }
       setStatus('failed')
-      setErrorMessage(err.message || '连接服务器异常，无法创建分析任务。')
+      setErrorMessage(formatFriendlyAuthErrorMessage(err.code || err.name, err.message))
     }
   }
 
@@ -532,40 +536,51 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             <p>
               结合官方 CPI 数据与您的收支输入，生成定制化 AI 生活解读报告。
             </p>
-            {!serverLiveConfigured && (
-              <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-            )}
-            {serverLiveConfigured && (
-              <>
-                <JudgeAccessPanel
-                  unlocked={judgeUnlocked}
-                  onChange={(unlocked) => {
-                    setJudgeUnlocked(unlocked)
-                    setKeyConfigured(unlocked)
-                  }}
-                />
-                {judgeUnlocked && (
-                  <label className="api-key-model-label" htmlFor="server-analysis-model-select">
-                    分析模型
-                    <select
-                      id="server-analysis-model-select"
-                      className="api-key-model-select"
-                      value={selectedModel}
-                      onChange={(event) => {
-                        const model = event.target.value
-                        if (model === '' || model === 'deepseek-v4-flash' || model === 'deepseek-v4-pro') {
-                          setSelectedModel(model)
-                        }
-                      }}
-                    >
-                      <option value="">跟随平台默认</option>
-                      <option value="deepseek-v4-flash">Flash 省额度</option>
-                      <option value="deepseek-v4-pro">Pro 高质量</option>
-                    </select>
-                  </label>
+
+            <PartnerSsoPanel />
+
+            <details className="developer-byok-details">
+              <summary className="developer-byok-summary">
+                <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
+              </summary>
+              <div className="developer-byok-content">
+                {!serverLiveConfigured && (
+                  <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
                 )}
-              </>
-            )}
+                {serverLiveConfigured && (
+                  <>
+                    <JudgeAccessPanel
+                      unlocked={judgeUnlocked}
+                      onChange={(unlocked) => {
+                        setJudgeUnlocked(unlocked)
+                        setKeyConfigured(unlocked)
+                      }}
+                    />
+                    {judgeUnlocked && (
+                      <label className="api-key-model-label" htmlFor="server-analysis-model-select">
+                        分析模型
+                        <select
+                          id="server-analysis-model-select"
+                          className="api-key-model-select"
+                          value={selectedModel}
+                          onChange={(event) => {
+                            const model = event.target.value
+                            if (model === '' || model === 'deepseek-v4-flash' || model === 'deepseek-v4-pro') {
+                              setSelectedModel(model)
+                            }
+                          }}
+                        >
+                          <option value="">跟随平台默认</option>
+                          <option value="deepseek-v4-flash">Flash 省额度</option>
+                          <option value="deepseek-v4-pro">Pro 高质量</option>
+                        </select>
+                      </label>
+                    )}
+                  </>
+                )}
+              </div>
+            </details>
+
             <button
               className="btn-generate-insight"
               onClick={() => handleStartInsight()}
@@ -573,16 +588,16 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               disabled={serverLiveConfigured && !judgeUnlocked}
               title={serverLiveConfigured && !judgeUnlocked ? '请先进入评委模式' : undefined}
             >
-              <Sparkles size={16} /> {serverLiveConfigured ? '评委生成真实 AI 解读' : keyConfigured ? '生成 AI 生活解读' : '生成解读'}
+              <Sparkles size={16} /> {serverLiveConfigured ? '评委生成真实 AI 解读' : keyConfigured ? '生成 AI 生活解读' : '生成 AI 深度解读报告'}
             </button>
             <span className="quota-hint">
               {serverLiveConfigured
                 ? judgeUnlocked
                   ? '评委模式已开启：由 Cloudflare Worker 服务端调用，项目 Key 不进入浏览器'
-                  : '仅评委模式可发起真实调用；项目 API Key 保存在服务端'
+                  : '项目 Partner API Key 保存在服务端，安全隔离不进入浏览器'
                 : keyConfigured
                 ? '由你的 Key 直接调用分析平台，用量计入你自己的账号'
-                : '未填 Key：预设案例优先播放真实任务的存档回放（可核验、零额度），其余输入用本地演示数据'}
+                : '优先使用 Partner SSO / 回放存档，无 Key 也可使用本地演示 Mock'}
             </span>
           </div>
         </div>
@@ -870,19 +885,26 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               <p>{errorMessage}</p>
             </div>
           </div>
-          {/* Key 无效时失败信息在这里出现，改 Key 的入口必须也在这里。 */}
-          {!serverLiveConfigured && (
-            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-          )}
-          {serverLiveConfigured && !judgeUnlocked && (
-            <JudgeAccessPanel
-              unlocked={judgeUnlocked}
-              onChange={(unlocked) => {
-                setJudgeUnlocked(unlocked)
-                setKeyConfigured(unlocked)
-              }}
-            />
-          )}
+          <PartnerSsoPanel />
+          <details className="developer-byok-details">
+            <summary className="developer-byok-summary">
+              <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
+            </summary>
+            <div className="developer-byok-content">
+              {!serverLiveConfigured && (
+                <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+              )}
+              {serverLiveConfigured && !judgeUnlocked && (
+                <JudgeAccessPanel
+                  unlocked={judgeUnlocked}
+                  onChange={(unlocked) => {
+                    setJudgeUnlocked(unlocked)
+                    setKeyConfigured(unlocked)
+                  }}
+                />
+              )}
+            </div>
+          </details>
           <button className="btn-retry" onClick={() => handleStartInsight(false)} type="button">
             <RefreshCw size={14} /> 重新尝试
           </button>
@@ -890,18 +912,26 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       ) : status === 'cancelled' ? (
         <div className="insight-body cancelled-state">
           <p className="cancelled-note">任务已取消。您的本地输入与精准计算数字已被完整保留。</p>
-          {!serverLiveConfigured && (
-            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-          )}
-          {serverLiveConfigured && !judgeUnlocked && (
-            <JudgeAccessPanel
-              unlocked={judgeUnlocked}
-              onChange={(unlocked) => {
-                setJudgeUnlocked(unlocked)
-                setKeyConfigured(unlocked)
-              }}
-            />
-          )}
+          <PartnerSsoPanel />
+          <details className="developer-byok-details">
+            <summary className="developer-byok-summary">
+              <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
+            </summary>
+            <div className="developer-byok-content">
+              {!serverLiveConfigured && (
+                <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+              )}
+              {serverLiveConfigured && !judgeUnlocked && (
+                <JudgeAccessPanel
+                  unlocked={judgeUnlocked}
+                  onChange={(unlocked) => {
+                    setJudgeUnlocked(unlocked)
+                    setKeyConfigured(unlocked)
+                  }}
+                />
+              )}
+            </div>
+          </details>
           <button className="btn-restart" onClick={() => handleStartInsight()} type="button">
             <Sparkles size={14} /> 重新生成解读
           </button>

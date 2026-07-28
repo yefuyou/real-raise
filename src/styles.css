@@ -2209,3 +2209,207 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
   .estimate-options { padding: 8px 10px; }
   .legend-controls { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 }
+
+/* --- InfiniSynapse Partner SSO 前端体验层 --- */
+.partner-sso-panel {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.sso-loading-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sso-loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: ssoPulse 1.2s infinite ease-in-out;
+}
+@keyframes ssoPulse {
+  0%, 100% { opacity: .3; transform: scale(.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.sso-authenticated-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sso-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sso-avatar-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+.sso-avatar-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+.sso-user-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sso-user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sso-nickname {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.sso-connected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--green);
+  background: rgba(67, 122, 103, 0.1);
+  border: 1px solid rgba(67, 122, 103, 0.3);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.sso-hint-text {
+  font-size: 10px;
+  color: var(--muted);
+}
+.btn-sso-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.btn-sso-logout:hover {
+  color: var(--red);
+  border-color: var(--red);
+  background: rgba(198, 40, 40, .05);
+}
+
+.sso-unauthenticated-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sso-unauth-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sso-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.sso-badge-free {
+  font-size: 10px;
+  color: var(--accent-gold);
+  background: rgba(198, 138, 53, 0.1);
+  border: 1px solid rgba(198, 138, 53, 0.3);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.sso-description {
+  font-size: 11px;
+  color: var(--ink-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+.sso-action-row {
+  margin-top: 4px;
+}
+.btn-sso-login {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 9px 14px;
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.btn-sso-login:hover {
+  background: #333;
+}
+.sso-footer-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+.sso-error-banner {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: rgba(198, 40, 40, .08);
+  border: 1px solid rgba(198, 40, 40, .25);
+  color: var(--red);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* --- 高级 / 开发者设置 Accordion --- */
+.developer-byok-details {
+  margin: 8px 0 12px;
+}
+.developer-byok-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+.developer-byok-summary:hover {
+  color: var(--ink);
+}
+.developer-byok-content {
+  margin-top: 8px;
+}
+
