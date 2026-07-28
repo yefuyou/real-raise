@@ -116,9 +116,11 @@ function validatePayslipSummary(value) {
   return result
 }
 
-export function calculateLivingCost(input) {
+export function calculateLivingCost(input, nextOtherSpendOverride) {
   const currentTotalSpend = input.currentRent + input.otherSpend
-  const nextOtherSpend = input.otherSpend * (1 + input.otherInflationRate)
+  const nextOtherSpend = Number.isFinite(nextOtherSpendOverride) && nextOtherSpendOverride >= 0
+    ? nextOtherSpendOverride
+    : input.otherSpend * (1 + input.otherInflationRate)
   const nextTotalSpend = input.nextRent + nextOtherSpend
   const currentRemainder = input.currentIncome - currentTotalSpend
   const nextRemainder = input.nextIncome - nextTotalSpend
@@ -126,8 +128,9 @@ export function calculateLivingCost(input) {
   const rentIncrease = input.nextRent - input.currentRent
   const incomeGrowthRate = input.currentIncome > 0 ? input.nextIncome / input.currentIncome - 1 : 0
   const totalSpendGrowthRate = currentTotalSpend > 0 ? nextTotalSpend / currentTotalSpend - 1 : 0
-  const realPurchasingPowerRate = 1 + totalSpendGrowthRate > 0
-    ? (1 + incomeGrowthRate) / (1 + totalSpendGrowthRate) - 1
+  const monthlyRemainderChange = nextRemainder - currentRemainder
+  const realPurchasingPowerRate = input.currentIncome > 0
+    ? monthlyRemainderChange / input.currentIncome
     : 0
 
   return {
@@ -136,8 +139,8 @@ export function calculateLivingCost(input) {
     nextTotalSpend,
     currentRemainder,
     nextRemainder,
-    monthlyRemainderChange: nextRemainder - currentRemainder,
-    annualRemainderChange: (nextRemainder - currentRemainder) * 12,
+    monthlyRemainderChange,
+    annualRemainderChange: monthlyRemainderChange * 12,
     incomeGrowthRate,
     totalSpendGrowthRate,
     realPurchasingPowerRate,
@@ -194,9 +197,24 @@ export function validateAnalysisRequest(value) {
     ? validatePayslipSummary(value.payslipSummary)
     : undefined
 
+  const effectiveInput = detailedBreakdown
+    ? (() => {
+      const currentSum = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.currentAmount, 0)
+      const nextSum = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.nextAmount, 0)
+      return {
+        ...input,
+        otherSpend: currentSum,
+        otherInflationRate: currentSum > 0 ? (nextSum - currentSum) / currentSum : 0,
+      }
+    })()
+    : input
+  const detailedNextSpend = detailedBreakdown
+    ? Object.values(detailedBreakdown).reduce((sum, item) => sum + item.nextAmount, 0)
+    : undefined
+
   return {
-    input,
-    calculation: calculateLivingCost(input),
+    input: effectiveInput,
+    calculation: calculateLivingCost(effectiveInput, detailedNextSpend),
     locale: 'zh-CN',
     includeInsight: true,
     inputMode,

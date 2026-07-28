@@ -47,6 +47,7 @@ export class AuthClient {
 
   private listeners = new Set<(state: AuthState) => void>()
   private useMock: boolean = false
+  private checkAuthPromise: Promise<AuthState> | null = null
 
   constructor(options: { useMock?: boolean } = {}) {
     this.useMock = options.useMock ?? false
@@ -79,6 +80,19 @@ export class AuthClient {
    * 初始化 / 刷新用户认证状态
    */
   public async checkAuth(): Promise<AuthState> {
+    // PartnerSsoPanel and InsightSection both subscribe to the shared client.
+    // Reuse one in-flight check so a late network response cannot overwrite a
+    // newer successful authentication result with a stale logged-out state.
+    if (this.checkAuthPromise) return this.checkAuthPromise
+    this.checkAuthPromise = this.performCheckAuth()
+    try {
+      return await this.checkAuthPromise
+    } finally {
+      this.checkAuthPromise = null
+    }
+  }
+
+  private async performCheckAuth(): Promise<AuthState> {
     if (this.useMock) {
       this.setState({ loading: false })
       return this.state
@@ -128,21 +142,33 @@ export class AuthClient {
           })
           return this.state
         }
+        this.setState({
+          authenticated: false,
+          user: null,
+          canRunAnalysis: false,
+          loading: false,
+        })
+        return this.state
       }
       this.setState({
         authenticated: false,
         user: null,
         canRunAnalysis: false,
         loading: false,
+        error: `认证接口返回 HTTP ${response.status}`,
+        errorCode: response.status === 403 ? 'ORIGIN_NOT_ALLOWED' : 'AUTH_CHECK_FAILED',
       })
       return this.state
-    } catch {
-      // HTTP 访问失败或后端接口尚未就绪，优雅降级为未登录状态，不中断本地算表
+    } catch (error) {
+      // HTTP 访问失败仍优雅降级为未登录状态，但保留可见错误，避免把
+      // CORS/服务端故障伪装成“用户没登录”。
       this.setState({
         authenticated: false,
         user: null,
         canRunAnalysis: false,
         loading: false,
+        error: error instanceof Error ? error.message : '认证接口连接失败',
+        errorCode: 'AUTH_CHECK_FAILED',
       })
       return this.state
     }
@@ -228,6 +254,12 @@ export function formatFriendlyAuthErrorMessage(code?: string | null, rawMessage?
   }
   if (normalizedCode === 'AUTH_REQUIRED' || normalizedCode === 'UNAUTHORIZED' || normalizedMsg.includes('auth_required')) {
     return '需要先登录 InfiniSynapse 账号才能发起深度报告生成。'
+  }
+  if (normalizedCode === 'ORIGIN_NOT_ALLOWED') {
+    return '线上认证来源校验失败，请刷新页面后重试；本地算表不受影响。'
+  }
+  if (normalizedCode === 'AUTH_CHECK_FAILED') {
+    return '线上登录状态检查失败，请刷新页面后重试；本地算表不受影响。'
   }
   if (normalizedCode === 'PARTNER_API_KEY_UNAVAILABLE' || normalizedMsg.includes('partner_api_key_unavailable')) {
     return '服务端 Partner API Key 暂不可用，请稍后重试或联系系统管理员。'

@@ -37,9 +37,17 @@ import type {
 
 interface InsightSectionProps {
   requestPayload: StartAnalysisRequest
+  /** 阻止把未完成的工资条或未同步的详细拆解提交给 AI。 */
+  analysisValidationMessage?: string | null
   onOpenSources: (sources: SourceReference[]) => void
   remoteFeatureEnabled?: boolean
   onToggleRemoteFeature?: (enabled: boolean) => void
+}
+
+type AnalysisInputContext = {
+  signature: string
+  incomeInputMode: 'net' | 'payslip'
+  inputMode: 'basic' | 'detailed'
 }
 
 /** Helper to render inline **bold** text without dangerouslySetInnerHTML */
@@ -237,6 +245,7 @@ function AnalysisBlock({
 
 export const InsightSection: React.FC<InsightSectionProps> = ({
   requestPayload,
+  analysisValidationMessage = null,
   onOpenSources,
   remoteFeatureEnabled = true,
   onToggleRemoteFeature,
@@ -261,6 +270,10 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [userSelectedModel, setUserSelectedModel] = useState<AnalysisModel | ''>('')
   const [judgeSelectedModel, setJudgeSelectedModel] = useState<AnalysisModel | ''>('')
   const [authState, setAuthState] = useState<AuthState>(() => authClient.getState())
+  const [taskInputContext, setTaskInputContext] = useState<AnalysisInputContext | null>(null)
+  const [reportInputContext, setReportInputContext] = useState<AnalysisInputContext | null>(null)
+  const [isStarting, setIsStarting] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
   const lastServerModeRef = useRef<'partner' | 'judge'>('partner')
 
   useEffect(() => {
@@ -274,11 +287,43 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const activeTaskIdRef = useRef<string | null>(null)
   const runVersionRef = useRef(0)
+  const startInFlightRef = useRef(false)
+  const pendingCancellationRef = useRef<Promise<boolean> | null>(null)
+  const currentAnalysisModel = lastServerModeRef.current === 'partner'
+    ? userSelectedModel
+    : (judgeSelectedModel || selectedModel)
   const currentRequestSignature = requestSignature({
     ...requestPayload,
-    ...(selectedModel ? { analysisModel: selectedModel } : {}),
+    ...(currentAnalysisModel ? { analysisModel: currentAnalysisModel } : {}),
   })
-  const previousRequestSignatureRef = useRef(currentRequestSignature)
+
+  const taskUsesPreviousInputs = Boolean(
+    taskInputContext
+    && (status === 'queued' || status === 'running')
+    && taskInputContext.signature !== currentRequestSignature,
+  )
+  const reportUsesPreviousInputs = Boolean(
+    reportInputContext
+    && status === 'completed'
+    && reportInputContext.signature !== currentRequestSignature,
+  )
+  const describeInputContext = (context: AnalysisInputContext | null) => {
+    if (!context) return '提交时的输入'
+    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'}`
+  }
+  const cancelTaskAndTrack = (id: string): Promise<boolean> => {
+    const promise = apiClient.cancelAnalysis(id)
+    pendingCancellationRef.current = promise
+    void promise.then(
+      () => {
+        if (pendingCancellationRef.current === promise) pendingCancellationRef.current = null
+      },
+      () => {
+        if (pendingCancellationRef.current === promise) pendingCancellationRef.current = null
+      },
+    )
+    return promise
+  }
 
   useEffect(() => {
     // 旧版本写过一个无法真正跨刷新恢复的活动任务 ID；启动时迁移清掉。
@@ -296,32 +341,9 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       unsubscribeRef.current = null
       const activeTaskId = activeTaskIdRef.current
       activeTaskIdRef.current = null
-      if (activeTaskId) void apiClient.cancelAnalysis(activeTaskId)
+      if (activeTaskId) void cancelTaskAndTrack(activeTaskId)
     }
   }, [])
-
-  useEffect(() => {
-    if (previousRequestSignatureRef.current === currentRequestSignature) return
-    previousRequestSignatureRef.current = currentRequestSignature
-    runVersionRef.current += 1
-    unsubscribeRef.current?.()
-    unsubscribeRef.current = null
-    const activeTaskId = activeTaskIdRef.current
-    activeTaskIdRef.current = null
-    if (activeTaskId) void apiClient.cancelAnalysis(activeTaskId)
-    setStatus('idle')
-    setTaskId(null)
-    setStage('等待生成...')
-    setStageMessage('')
-    setPercent(0)
-    setInsightText(null)
-    setStructuredInsight(null)
-    setSources([])
-    setErrorMessage(null)
-    setDownloadError(null)
-    setReplayMeta(null)
-    setExportNotice(null)
-  }, [currentRequestSignature])
 
   useEffect(() => {
     if (remoteFeatureEnabled) return
@@ -330,7 +352,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     unsubscribeRef.current = null
     const activeTaskId = activeTaskIdRef.current
     activeTaskIdRef.current = null
-    if (activeTaskId) void apiClient.cancelAnalysis(activeTaskId)
+    if (activeTaskId) void cancelTaskAndTrack(activeTaskId)
     setStatus('idle')
     setTaskId(null)
     setStage('等待生成...')
@@ -343,13 +365,17 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setDownloadError(null)
     setReplayMeta(null)
     setExportNotice(null)
+    setTaskInputContext(null)
+    setReportInputContext(null)
   }, [remoteFeatureEnabled])
 
   const handleStartInsight = async (
     serverMode?: 'partner' | 'judge',
     forceSimulatedError?: boolean
   ) => {
-    if (!remoteFeatureEnabled) return
+    if (!remoteFeatureEnabled || analysisValidationMessage || startInFlightRef.current) return
+    startInFlightRef.current = true
+    setIsStarting(true)
     const activeServerMode = serverMode ?? lastServerModeRef.current
     lastServerModeRef.current = activeServerMode
 
@@ -359,8 +385,17 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     unsubscribeRef.current = null
     const previousTaskId = activeTaskIdRef.current
     activeTaskIdRef.current = null
-    if (previousTaskId) await apiClient.cancelAnalysis(previousTaskId)
-    if (runVersion !== runVersionRef.current) return
+    if (pendingCancellationRef.current) {
+      await pendingCancellationRef.current.catch(() => undefined)
+    }
+    if (previousTaskId) {
+      await cancelTaskAndTrack(previousTaskId).catch(() => undefined)
+    }
+    if (runVersion !== runVersionRef.current) {
+      startInFlightRef.current = false
+      setIsStarting(false)
+      return
+    }
 
     const isSimError = typeof forceSimulatedError === 'boolean' ? forceSimulatedError : simulatedError
     const activeModel = activeServerMode === 'partner' ? userSelectedModel : (judgeSelectedModel || selectedModel)
@@ -377,6 +412,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setSources([])
     setReplayMeta(null)
     setExportNotice(null)
+    setReportInputContext(null)
 
     try {
       const payload: StartAnalysisRequest = {
@@ -384,6 +420,12 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         simulatedError: isSimError,
         ...(activeModel ? { analysisModel: activeModel } : {}),
       }
+      const runInputContext: AnalysisInputContext = {
+        signature: requestSignature(payload),
+        incomeInputMode: payload.incomeInputMode ?? 'net',
+        inputMode: payload.inputMode ?? 'basic',
+      }
+      setTaskInputContext(runInputContext)
       const response = await apiClient.startAnalysis(payload, activeServerMode)
       const newTaskId = response.taskId
       if (runVersion !== runVersionRef.current) {
@@ -419,10 +461,13 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           const struct = evt.structuredInsight || generateMockStructuredInsight(payload)
           setStructuredInsight(struct)
           setStage('分析完成')
+          setReportInputContext(runInputContext)
+          setTaskInputContext(null)
         } else if (evt.type === 'failed') {
           activeTaskIdRef.current = null
           setStatus('failed')
           setErrorMessage(formatFriendlyAuthErrorMessage(evt.code, evt.message))
+          setTaskInputContext(null)
         }
       })
 
@@ -437,21 +482,36 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       }
       setStatus('failed')
       setErrorMessage(formatFriendlyAuthErrorMessage(err.code || err.name, err.message))
+      setTaskInputContext(null)
+    } finally {
+      startInFlightRef.current = false
+      setIsStarting(false)
     }
   }
 
   const handleCancel = async () => {
+    if (isCancelling) return
     runVersionRef.current += 1
     unsubscribeRef.current?.()
     unsubscribeRef.current = null
     const activeTaskId = activeTaskIdRef.current ?? taskId
     activeTaskIdRef.current = null
-    if (activeTaskId) await apiClient.cancelAnalysis(activeTaskId)
+    setIsCancelling(true)
     setTaskId(null)
     setStatus('cancelled')
     setStage('任务已取消')
     setStageMessage('')
     setPercent(0)
+    setTaskInputContext(null)
+    if (activeTaskId) {
+      try {
+        await cancelTaskAndTrack(activeTaskId)
+      } finally {
+        setIsCancelling(false)
+      }
+    } else {
+      setIsCancelling(false)
+    }
   }
 
   const handleDownloadArtifact = (fileName: string) => {
@@ -530,12 +590,37 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           </label>
 
           {remoteFeatureEnabled && (status === 'queued' || status === 'running') && (
-            <button className="btn-cancel-task" onClick={handleCancel} type="button">
-              <StopCircle size={14} /> 取消任务
+            <button className="btn-cancel-task" onClick={handleCancel} type="button" disabled={isCancelling}>
+              <StopCircle size={14} /> {isCancelling ? '正在取消…' : '取消任务'}
             </button>
           )}
         </div>
       </div>
+
+      {taskUsesPreviousInputs && (
+        <div className="analysis-stale-notice" role="status">
+          <AlertTriangle size={15} />
+          <span>
+            左侧输入已变化；当前任务仍按“{describeInputContext(taskInputContext)}”提交时的数据继续执行，
+            不会自动新建任务。需要停止时请点击右上角“取消任务”。
+          </span>
+        </div>
+      )}
+      {reportUsesPreviousInputs && (
+        <div className="analysis-stale-notice completed-stale-notice" role="status">
+          <AlertTriangle size={15} />
+          <span>
+            当前报告基于“{describeInputContext(reportInputContext)}”提交时的数据；左侧已有新输入。
+            确认左侧结果后，点击“按最新输入重新分析”才会发起新任务。
+          </span>
+        </div>
+      )}
+      {analysisValidationMessage && (
+        <div className="analysis-validation-note" role="alert">
+          <AlertTriangle size={15} />
+          <span>{analysisValidationMessage}</span>
+        </div>
+      )}
 
       {!remoteFeatureEnabled ? (
         <div className="insight-body idle-state">
@@ -581,6 +666,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                   <button
                     className="btn-generate-insight btn-user-mode"
                     onClick={() => handleStartInsight('partner')}
+                    disabled={isStarting || Boolean(analysisValidationMessage)}
                     type="button"
                   >
                     <Sparkles size={16} /> 使用我的 InfiniSynapse 账号生成 AI 深度解读
@@ -631,6 +717,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                         <button
                           className="btn-generate-insight btn-judge-mode"
                           onClick={() => handleStartInsight('judge')}
+                          disabled={isStarting || Boolean(analysisValidationMessage)}
                           type="button"
                         >
                           <Zap size={16} /> 以评委身份发起解读 (评委密钥模式)
@@ -647,6 +734,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               <button
                 className="btn-generate-insight"
                 onClick={() => handleStartInsight('partner')}
+                disabled={isStarting || Boolean(analysisValidationMessage)}
                 type="button"
               >
                 <Sparkles size={16} /> {serverLiveConfigured ? '生成 AI 深度解读报告' : keyConfigured ? '生成 AI 生活解读' : '生成解读'}
@@ -656,7 +744,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             <span className="quota-hint">
               {serverLiveConfigured
                 ? judgeUnlocked && authState.authenticated
-                  ? '双模式独立已就绪：用户模式消耗个人积分，评委模式使用服务端评委 Key，模式显式可选，不自动混用'
+                  ? '已登录 InfiniSynapse；请按页面按钮选择本次生成身份。'
                   : judgeUnlocked
                   ? '评委模式已解锁：由 Cloudflare Worker 服务端调用项目 Key，浏览器不接触密钥'
                   : authState.authenticated
@@ -936,8 +1024,13 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                   <Download size={13} /> 导出回放包（dev）
                 </button>
               )}
-              <button className="btn-reanalyze" onClick={() => handleStartInsight()} type="button">
-                <RefreshCw size={13} /> 重新分析
+              <button
+                className="btn-reanalyze"
+                onClick={() => handleStartInsight()}
+                disabled={isStarting || Boolean(analysisValidationMessage)}
+                type="button"
+              >
+                <RefreshCw size={13} /> {reportUsesPreviousInputs ? '按最新输入重新分析' : '重新分析'}
               </button>
             </div>
           </div>
@@ -972,7 +1065,12 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               )}
             </div>
           </details>
-          <button className="btn-retry" onClick={() => handleStartInsight(undefined, false)} type="button">
+          <button
+            className="btn-retry"
+            onClick={() => handleStartInsight(undefined, false)}
+            disabled={isStarting || Boolean(analysisValidationMessage)}
+            type="button"
+          >
             <RefreshCw size={14} /> 重新尝试
           </button>
         </div>
@@ -999,7 +1097,12 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               )}
             </div>
           </details>
-          <button className="btn-restart" onClick={() => handleStartInsight()} type="button">
+          <button
+            className="btn-restart"
+            onClick={() => handleStartInsight()}
+            disabled={isStarting || Boolean(analysisValidationMessage)}
+            type="button"
+          >
             <Sparkles size={14} /> 重新生成解读
           </button>
         </div>

@@ -359,6 +359,30 @@ async function main() {
     assert(nextSum === 3540, '分类下阶段预估合计必须精确对齐 3540')
   })
 
+  await runTest('6.4 详细模式极端下降必须实时进入购买力计算', () => {
+    const detailedBreakdown = {
+      food: { currentAmount: 6000, cpiRate: -0.9993333333333333, nextAmount: 4 },
+      utilities: { currentAmount: 0, cpiRate: 0.019, nextAmount: 0 },
+      transport: { currentAmount: 0, cpiRate: 0.018, nextAmount: 0 },
+      education: { currentAmount: 0, cpiRate: 0.012, nextAmount: 0 },
+      medical: { currentAmount: 0, cpiRate: 0.02, nextAmount: 0 },
+      other: { currentAmount: 0, cpiRate: 0.116, nextAmount: 0 },
+    }
+    const currentSum = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.currentAmount, 0)
+    const nextSum = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.nextAmount, 0)
+    const effectiveInput: ScenarioInput = {
+      currentIncome: 10000,
+      nextIncome: 12000,
+      currentRent: 2000,
+      nextRent: 2000,
+      otherSpend: currentSum,
+      otherInflationRate: (nextSum - currentSum) / currentSum,
+    }
+    const result = calculateLivingCost(effectiveInput)
+    assert(Math.abs(result.nextOtherSpend - 4) < 1e-9, '六类下阶段合计为 4 元时主算表必须使用 4 元')
+    assert(Math.abs(result.monthlyRemainderChange - 7996) < 1e-9, '六类支出下降 5996 元后月结余变化必须实时反映')
+  })
+
   // --- 测试组 7: CityBenchmark 契约 P0 断言 (合肥历史期、2026H1 回退与全国基准) ---
   await runTest('7.1 合肥 2024 (340100) 精确命中 A-history 且不标为 2026H1', () => {
     const res = resolveCityBenchmark('340100', 'foodAndTobaccoAlcohol', '2024')
@@ -436,6 +460,61 @@ async function main() {
     const netPayload: StartAnalysisRequest = { ...samplePayload, incomeInputMode: 'net' }
     const netStruct = generateMockStructuredInsight(netPayload)
     assert(netStruct.drivers.every((d) => d.id !== 'deductions'), '到手模式不得虚构扣缴驱动因素')
+  })
+
+  await runTest('8.5 工资条模式请求：工资条到手必须真实写入本地计算与 AI 载荷', () => {
+    const payslipSummary = computePayslip(EXAMPLE_PAYSLIP)
+    const payslipInput: ScenarioInput = {
+      ...sampleInput,
+      currentIncome: payslipSummary.currentNet,
+      nextIncome: payslipSummary.nextNet,
+    }
+    const payload: StartAnalysisRequest = {
+      ...samplePayload,
+      input: payslipInput,
+      calculation: calculateLivingCost(payslipInput),
+      incomeInputMode: 'payslip',
+      payslipSummary,
+    }
+    assert(payload.input.currentIncome === payslipSummary.currentNet, '工资条当前到手必须写入主计算输入')
+    assert(payload.input.nextIncome === payslipSummary.nextNet, '工资条下一期到手必须写入主计算输入')
+    assert(
+      JSON.stringify(calculateLivingCost(payload.input)) === JSON.stringify(payload.calculation),
+      '工资条请求中的 calculation 必须可由写回后的到手输入复算',
+    )
+    const struct = generateMockStructuredInsight(payload)
+    assert(struct.drivers.some((driver) => driver.id === 'deductions'), '工资条 AI 载荷必须包含扣缴驱动因素')
+  })
+
+  await runTest('8.6 详细拆解请求：六类明细必须进入载荷且签名与基础模式隔离', () => {
+    const detailedBreakdown = {
+      food: { currentAmount: 1200, cpiRate: 0.01, nextAmount: 1212 },
+      utilities: { currentAmount: 600, cpiRate: 0.02, nextAmount: 612 },
+      transport: { currentAmount: 500, cpiRate: 0.03, nextAmount: 515 },
+      education: { currentAmount: 400, cpiRate: 0.01, nextAmount: 404 },
+      medical: { currentAmount: 300, cpiRate: 0.02, nextAmount: 306 },
+      other: { currentAmount: 500, cpiRate: 0, nextAmount: 500 },
+    }
+    const detailedCurrentTotal = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.currentAmount, 0)
+    const detailedInput: ScenarioInput = {
+      ...sampleInput,
+      otherSpend: detailedCurrentTotal,
+      otherInflationRate: (1212 + 612 + 515 + 404 + 306 + 500 - detailedCurrentTotal) / detailedCurrentTotal,
+    }
+    const payload: StartAnalysisRequest = {
+      ...samplePayload,
+      input: detailedInput,
+      calculation: calculateLivingCost(detailedInput),
+      inputMode: 'detailed',
+      detailedBreakdown,
+    }
+    const struct = generateMockStructuredInsight(payload)
+    assert(payload.detailedBreakdown !== undefined, '详细模式必须提交六类明细')
+    assert(struct.drivers.some((driver) => driver.id === 'food'), '详细模式 AI 载荷必须输出食品与餐饮驱动因素')
+    assert(
+      requestSignature(payload) !== requestSignature({ ...payload, inputMode: 'basic', detailedBreakdown: undefined }),
+      '详细模式与基础模式必须使用不同请求签名，避免错误命中缓存',
+    )
   })
 
   // --- 测试组 9: 工资条估算引擎 (docs/PAYSLIP_UX_SPEC.md §四) ---

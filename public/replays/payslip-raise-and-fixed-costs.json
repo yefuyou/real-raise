@@ -3,7 +3,7 @@
   "scenarioId": "payslip-raise-and-fixed-costs",
   "vendorTaskId": "2a735498-f2ec-448f-b839-639ddce26c4f",
   "recordedAt": "2026-07-26T14:29:44.118Z",
-  "signature": "439bd3cf8a3f2680",
+  "signature": "1cd9f8a35011d83e",
   "request": {
     "input": {
       "currentIncome": 7670,
@@ -23,7 +23,7 @@
       "annualRemainderChange": -11311.697083603358,
       "incomeGrowthRate": 0.09282920469361144,
       "totalSpendGrowthRate": 0.2545602190205558,
-      "realPurchasingPowerRate": -0.1289145087457093,
+      "realPurchasingPowerRate": -0.12289979447635113,
       "rentIncrease": 1600,
       "raiseIncrease": 712,
       "raiseConsumedByRentRate": 2.247191011235955,

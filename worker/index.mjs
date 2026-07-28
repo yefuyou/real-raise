@@ -561,7 +561,10 @@ async function handleSsoCallback(request, env) {
 }
 
 async function handleSsoMe(request, env) {
-  const origin = request.headers.get('origin') ?? ''
+  // Same-origin GET requests are allowed to omit the Origin header. Browsers
+  // commonly do this for fetch('/api/auth/me'), while cross-origin requests
+  // still carry Origin and remain restricted by ALLOWED_ORIGINS.
+  const origin = request.headers.get('origin') || new URL(request.url).origin
   if (!origin || !allowedOrigins(env).has(origin)) {
     return errorResponse('', 403, 'ORIGIN_NOT_ALLOWED', '请求来源不在允许列表。')
   }

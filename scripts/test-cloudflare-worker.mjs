@@ -33,6 +33,29 @@ assert.deepEqual(validated.calculation, calculateLivingCost(validRequest.input))
 assert.equal('forged' in validated.calculation, false)
 console.log('PASS Worker ignores client calculation and recomputes deterministic result')
 
+const detailedZeroToFourRequest = {
+  ...validRequest,
+  inputMode: 'detailed',
+  input: {
+    ...validRequest.input,
+    otherSpend: 0,
+    otherInflationRate: 0,
+  },
+  detailedBreakdown: {
+    food: { currentAmount: 0, cpiRate: 0, nextAmount: 4 },
+    utilities: { currentAmount: 0, cpiRate: 0, nextAmount: 0 },
+    transport: { currentAmount: 0, cpiRate: 0, nextAmount: 0 },
+    education: { currentAmount: 0, cpiRate: 0, nextAmount: 0 },
+    medical: { currentAmount: 0, cpiRate: 0, nextAmount: 0 },
+    other: { currentAmount: 0, cpiRate: 0, nextAmount: 0 },
+  },
+}
+const validatedDetailed = validateAnalysisRequest(detailedZeroToFourRequest)
+assert.equal(validatedDetailed.input.otherSpend, 0)
+assert.equal(validatedDetailed.calculation.nextOtherSpend, 4)
+assert.equal(validatedDetailed.calculation.nextTotalSpend, 2_804)
+console.log('PASS Worker detailed mode uses six-category sums, including zero-to-positive transitions')
+
 assert.throws(
   () => validateAnalysisRequest({ ...validRequest, prompt: 'free proxy please' }),
   InputError,
@@ -243,6 +266,12 @@ assert.deepEqual(meBody.user, {
 })
 assert.equal(meBody.canRunAnalysis, true)
 assert.doesNotMatch(JSON.stringify(meBody), /partner-test-fixture-key/)
+
+const sameOriginWithoutOriginHeader = await worker.fetch(new Request('https://real-raise.example/api/auth/me', {
+  headers: { Cookie: sessionCookie.split(';')[0] },
+}), ssoEnv)
+assert.equal(sameOriginWithoutOriginHeader.status, 200)
+assert.equal((await sameOriginWithoutOriginHeader.json()).authenticated, true)
 
 const replayedCallback = await worker.fetch(new Request(
   `https://real-raise.example/api/auth/infini/callback?code=ac_test&state=${encodeURIComponent(capturedState)}`,
