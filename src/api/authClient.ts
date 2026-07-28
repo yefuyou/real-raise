@@ -11,6 +11,13 @@
  * - 支持 Mock 模式用于单机无后端环境与测试断言。
  */
 
+declare const __REAL_RAISE_ANALYSIS_API_URL__: string | undefined
+
+const configuredApiUrl = typeof __REAL_RAISE_ANALYSIS_API_URL__ === 'string'
+  ? __REAL_RAISE_ANALYSIS_API_URL__
+  : ''
+const API_BASE_URL = configuredApiUrl.trim().replace(/\/+$/, '')
+
 export type AuthUser = {
   id: string
   name?: string
@@ -95,7 +102,7 @@ export class AuthClient {
     }
 
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         credentials: 'include',
@@ -141,7 +148,7 @@ export class AuthClient {
    */
   public login(): void {
     if (typeof window !== 'undefined') {
-      window.location.href = '/api/auth/infini/start'
+      window.location.href = `${API_BASE_URL}/api/auth/infini/start`
     }
   }
 
@@ -155,7 +162,7 @@ export class AuthClient {
     }
 
     try {
-      await fetch('/api/auth/logout', {
+      await fetch(`${API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
