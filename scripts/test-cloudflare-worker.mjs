@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { webcrypto } from 'node:crypto'
-import worker, { AuthSessionStore, createJudgeToken, UsageGuard, verifyJudgeToken } from '../worker/index.mjs'
+import worker, {
+  AuthSessionStore,
+  createJudgeToken,
+  resolveAnalysisMode,
+  UsageGuard,
+  verifyJudgeToken,
+} from '../worker/index.mjs'
 import { InputError, calculateLivingCost, validateAnalysisRequest } from '../worker/core.mjs'
 
 globalThis.crypto ??= webcrypto
@@ -32,6 +38,20 @@ assert.throws(
   InputError,
 )
 console.log('PASS Worker rejects arbitrary prompt and unknown fields')
+
+assert.deepEqual(
+  resolveAnalysisMode({ requestedMode: 'partner', judgeHeader: 'true', hasPartnerSession: true }),
+  { mode: 'partner', code: null },
+)
+assert.deepEqual(
+  resolveAnalysisMode({ requestedMode: 'judge', judgeHeader: 'true', hasPartnerSession: true }),
+  { mode: 'judge', code: null },
+)
+assert.deepEqual(
+  resolveAnalysisMode({ requestedMode: 'bogus', judgeHeader: '', hasPartnerSession: false }),
+  { mode: null, code: 'INVALID_ANALYSIS_MODE' },
+)
+console.log('PASS Partner and judge analysis modes remain explicitly independent')
 
 class MemoryStorage {
   constructor() {

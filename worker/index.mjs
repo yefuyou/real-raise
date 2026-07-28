@@ -190,7 +190,7 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Real-Raise-Session, X-Real-Raise-Judge',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Real-Raise-Session, X-Real-Raise-Judge, X-Real-Raise-Mode',
     'Access-Control-Expose-Headers': 'X-Real-Raise-Task-Id',
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '600',
@@ -593,6 +593,22 @@ async function handleSsoLogout(request, env) {
   })
 }
 
+/**
+ * Resolve the explicitly requested analysis identity. Partner SSO and judge
+ * mode must remain separate even when the same browser has both sessions.
+ * Missing mode keeps the old compatibility behavior during rollout.
+ */
+export function resolveAnalysisMode({ requestedMode, judgeHeader, hasPartnerSession }) {
+  if (requestedMode !== undefined && requestedMode !== '' && requestedMode !== 'partner' && requestedMode !== 'judge') {
+    return { mode: null, code: 'INVALID_ANALYSIS_MODE' }
+  }
+  if (requestedMode === 'partner') return { mode: 'partner', code: null }
+  if (requestedMode === 'judge') return { mode: 'judge', code: null }
+  if (judgeHeader === 'true') return { mode: 'judge', code: null }
+  if (hasPartnerSession) return { mode: 'partner', code: null }
+  return { mode: 'judge', code: null }
+}
+
 async function handleJudgeSession(request, env) {
   const origin = request.headers.get('origin') ?? ''
   if (!origin || !allowedOrigins(env).has(origin)) {
@@ -701,14 +717,27 @@ async function handleAnalysis(request, env) {
     return errorResponse(origin, 503, 'LIVE_DISABLED', '实时分析暂未开放。', true)
   }
   const ssoSession = await readSsoSession(request, env)
-  const usingPartnerKey = Boolean(ssoSession)
+  const modeDecision = resolveAnalysisMode({
+    requestedMode: request.headers.get('X-Real-Raise-Mode') ?? '',
+    judgeHeader: request.headers.get('X-Real-Raise-Judge') ?? '',
+    hasPartnerSession: Boolean(ssoSession),
+  })
+  if (modeDecision.code) {
+    return errorResponse(origin, 400, modeDecision.code, '分析模式无效，请重新选择用户模式或评委模式。')
+  }
+  const analysisMode = modeDecision.mode
+  const usingPartnerKey = analysisMode === 'partner'
+  if (usingPartnerKey && !ssoSession) {
+    return errorResponse(origin, 401, 'AUTH_REQUIRED', '请先使用 InfiniSynapse 登录，再生成个人报告。', true)
+  }
   if (usingPartnerKey && !ssoSession.apiKey) {
     return errorResponse(origin, 409, 'PARTNER_API_KEY_UNAVAILABLE', '登录成功，但当前账户暂时无法签发分析权限，请检查平台 API Key 上限。', true)
   }
   if (!usingPartnerKey && !env.INFINISYNAPSE_API_KEY) {
     return errorResponse(origin, 503, 'SERVER_NOT_CONFIGURED', '实时分析服务尚未配置。', true)
   }
-  // 兼容现有评委模式；Partner SSO 登录用户不需要再输入评委口令。
+  // Judge mode is explicitly independent from Partner SSO. A logged-in user
+  // still uses the project judge key when the caller asks for judge mode.
   if (!usingPartnerKey && request.headers.get('X-Real-Raise-Judge') !== 'true') {
     return errorResponse(origin, 403, 'JUDGE_MODE_REQUIRED', '请先进入评委模式。')
   }
@@ -723,17 +752,18 @@ async function handleAnalysis(request, env) {
     return errorResponse(origin, 400, 'INVALID_REQUEST', '请求无法解析。')
   }
 
-  const rateKey = ssoSession?.user?.id
-    || request.headers.get('CF-Connecting-IP')
-    || request.headers.get('X-Real-Raise-Session')
-    || 'anonymous'
+  const rateKey = usingPartnerKey
+    ? `partner-${ssoSession.user?.id || 'user'}`
+    : request.headers.get('CF-Connecting-IP')
+      || request.headers.get('X-Real-Raise-Session')
+      || 'anonymous'
   const rateResult = await env.ANALYSIS_RATE_LIMITER.limit({ key: rateKey })
   if (!rateResult.success) {
     return errorResponse(origin, 429, 'RATE_LIMITED', '每 60 秒只能发起一次实时分析。', true)
   }
 
   const requestId = crypto.randomUUID()
-  const guardScope = ssoSession?.user?.id
+  const guardScope = usingPartnerKey
     ? `partner-${ssoSession.user.id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80) || 'user'}`
     : 'project'
   try {
