@@ -17,9 +17,13 @@
 
 | 动作 | 浏览器请求路由 | 方法 | 提交 payload / 路由参数 | 响应格式 / SSE 事件 |
 | :--- | :--- | :--- | :--- | :--- |
-| **创建分析任务** | `/api/real-raise/analysis` | `POST` | `StartAnalysisRequest` (`input`, `calculation`, `locale`, `includeInsight`) | `StartAnalysisResponse` (`taskId`, `status`, `calculation`) |
-| **取消分析任务** | `/api/real-raise/analysis/:taskId/cancel` | `POST` | 无 | `{ success: boolean }` |
-| **订阅任务进度** | `/api/real-raise/analysis/:taskId/events` | `GET` | EventSource SSE 流 | `AgentTaskEvent` (`started`, `progress`, `insight`, `completed`, `failed`) |
+| **创建并订阅分析任务（生产 Worker）** | `/api/analysis` | `POST` | `StartAnalysisRequest`（含 `input`、仅供校验的 `calculation`、`calculationVersion`、`cityContext`、输入模式） | 单请求 SSE；响应头返回任务 ID，事件为 `started`、`progress`、`insight`、`completed`、`failed` |
+| **取消生产 Worker 任务** | 浏览器中止当前 `/api/analysis` 请求 | `AbortSignal` | 当前任务 ID | Worker 终止上游连接并释放并发 lease |
+| **本地/自托管备用 API** | `/api/real-raise/analysis` 及其子路由 | `POST` / `GET` | 旧 Node 适配器契约 | 仅用于本地开发和自托管，不是当前比赛生产路由 |
+
+`completed` 必须携带 `provenance`，明确正文来源、结构化卡片来源、
+确定性计算权威、公式版本、调用模式和用户归因。平台正文不能再被当作
+结构化金额的权威来源。
 
 ---
 
@@ -29,7 +33,11 @@
 
 - 城市数据回退契约：`src/data/cityBenchmarks.ts` / `docs/CITY_BENCHMARK_CONTRACT.md`
 - 供应商端点、SSE 归一化、Prompt 和 workspace 产物契约：`src/api/infiniSynapseContract.ts` / `docs/INFINISYNAPSE_TASK_CONTRACT.md`
-- Worker Server API 适配器已实现，但在 Cloudflare 登录、设置 Secret、配置静态站来源并完成一次真实任务之前，不得宣称线上链路已经验证。
+- Worker Server API 适配器是生产主链；每次发布仍必须重新核验 Secret、
+  Origin、Partner/Judge 会话和一笔真实用户任务，历史部署成功不能代替本次验证。
 
 1. **零暗猜接口**：严禁在前端推测、虚构或写死未经 `realRaiseContract.ts` 明确定义的后端接口。
 2. **Graceful Fallback**：若服务端尚未完成真实 API 对接，前端在 `remoteFeatureEnabled = false` 或 `useMock = true` 模式下回退至确定性计算 + 本地基准 Mock 状态机，绝不引发网页崩溃。
+3. **城市基准不信任客户端**：浏览器提交城市选择和可见上下文，Worker
+   必须与服务端可信目录逐字段核对；伪造的 CPI、来源 URL、覆盖层级或
+   caveat 必须在创建平台任务前被拒绝。

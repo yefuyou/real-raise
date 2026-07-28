@@ -13,6 +13,7 @@ import {
   Loader2,
   PieChart,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
   StopCircle,
   Sliders,
@@ -20,7 +21,7 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react'
-import { apiClient, generateMockStructuredInsight } from '../api/apiClient'
+import { apiClient, buildDeterministicStructuredInsight } from '../api/apiClient'
 import { hasApiKey } from '../api/apiKeyStore'
 import { requestSignature } from '../api/requestSignature'
 import { ApiKeyPanel } from './ApiKeyPanel'
@@ -29,8 +30,10 @@ import { PartnerSsoPanel } from './PartnerSsoPanel'
 import { authClient, formatFriendlyAuthErrorMessage, type AuthState } from '../api/authClient'
 import type {
   AgentTaskStatus,
+  AnalysisExecutionProvenance,
   AnalysisModel,
   RealRaiseInsight,
+  ReplayMeta,
   SourceReference,
   StartAnalysisRequest,
 } from '../api/realRaiseContract'
@@ -48,6 +51,25 @@ type AnalysisInputContext = {
   signature: string
   incomeInputMode: 'net' | 'payslip'
   inputMode: 'basic' | 'detailed'
+  cityName: string
+  calculationVersion: string
+}
+
+function executionLabel(provenance: AnalysisExecutionProvenance | null): string {
+  if (!provenance) return '分析结果已生成'
+  if (provenance.mode === 'partner-live') return 'InfiniSynapse 用户实时任务已完成'
+  if (provenance.mode === 'judge-live') return 'InfiniSynapse 评委实时任务已完成'
+  if (provenance.mode === 'byok-live') return provenance.cached
+    ? 'InfiniSynapse 用户任务缓存已载入'
+    : 'InfiniSynapse 用户实时任务已完成'
+  if (provenance.mode === 'replay') return 'InfiniSynapse 历史任务存档回放'
+  return '本地演示结果已生成'
+}
+
+function narrativeLabel(provenance: AnalysisExecutionProvenance): string {
+  if (provenance.narrativeSource === 'infinisynapse-live') return '正文：InfiniSynapse 实时任务'
+  if (provenance.narrativeSource === 'infinisynapse-replay') return '正文：InfiniSynapse 历史任务存档'
+  return '正文：Real Raise 本地演示模板'
 }
 
 /** Helper to render inline **bold** text without dangerouslySetInnerHTML */
@@ -257,6 +279,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [percent, setPercent] = useState<number>(0)
   const [insightText, setInsightText] = useState<string | null>(null)
   const [structuredInsight, setStructuredInsight] = useState<RealRaiseInsight | null>(null)
+  const [provenance, setProvenance] = useState<AnalysisExecutionProvenance | null>(null)
   const [sources, setSources] = useState<SourceReference[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -282,7 +305,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     return unsub
   }, [])
   /** 非空 = 本次结果来自真实任务存档回放（必须显式标注，不冒充实时）。 */
-  const [replayMeta, setReplayMeta] = useState<{ scenarioId: string; vendorTaskId: string; recordedAt: string } | null>(null)
+  const [replayMeta, setReplayMeta] = useState<ReplayMeta | null>(null)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const activeTaskIdRef = useRef<string | null>(null)
@@ -309,7 +332,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   )
   const describeInputContext = (context: AnalysisInputContext | null) => {
     if (!context) return '提交时的输入'
-    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'}`
+    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'} · ${context.cityName} · ${context.calculationVersion}`
   }
   const cancelTaskAndTrack = (id: string): Promise<boolean> => {
     const promise = apiClient.cancelAnalysis(id)
@@ -360,6 +383,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setPercent(0)
     setInsightText(null)
     setStructuredInsight(null)
+    setProvenance(null)
     setSources([])
     setErrorMessage(null)
     setDownloadError(null)
@@ -409,6 +433,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setDownloadError(null)
     setInsightText(null)
     setStructuredInsight(null)
+    setProvenance(null)
     setSources([])
     setReplayMeta(null)
     setExportNotice(null)
@@ -424,6 +449,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         signature: requestSignature(payload),
         incomeInputMode: payload.incomeInputMode ?? 'net',
         inputMode: payload.inputMode ?? 'basic',
+        cityName: payload.cityContext.cityName,
+        calculationVersion: payload.calculationVersion,
       }
       setTaskInputContext(runInputContext)
       const response = await apiClient.startAnalysis(payload, activeServerMode)
@@ -458,7 +485,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           setInsightText(evt.insight)
           setSources(evt.sources)
           setReplayMeta(evt.replayMeta ?? null)
-          const struct = evt.structuredInsight || generateMockStructuredInsight(payload)
+          setProvenance(evt.provenance)
+          const struct = evt.structuredInsight || buildDeterministicStructuredInsight(payload)
           setStructuredInsight(struct)
           setStage('分析完成')
           setReportInputContext(runInputContext)
@@ -783,7 +811,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           <div className="insight-result-header">
             <span className="success-tag">
               <CheckCircle2 size={14} />
-              {replayMeta ? '真实任务存档回放' : keyConfigured ? 'AI 生活解读已生成' : '演示解读已生成'}
+              {executionLabel(provenance)}
             </span>
             {sources.length > 0 && (
               <button
@@ -797,12 +825,40 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           </div>
 
           {replayMeta && (
-            <p className="replay-banner">
-              真实任务存档回放 · 任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
-              {serverLiveConfigured
-                ? '评委可在分析平台任务后台核验；实时服务恢复后可再次生成。'
-                : '评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。'}
-            </p>
+            <>
+              <p className="replay-banner">
+                {replayMeta.compatibility ? '历史真实任务存档（旧口径）' : '真实任务存档回放'}
+                {' · '}任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
+                供应商原件未改写（完整性已审计） ·
+                {serverLiveConfigured
+                  ? '评委可在分析平台任务后台核验；实时服务恢复后可再次生成。'
+                  : '评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。'}
+              </p>
+              {replayMeta.compatibility && (
+                <p className="replay-banner replay-compatibility-warning" role="alert">
+                  <strong>历史口径提示：</strong>
+                  {replayMeta.compatibility.userNotice}
+                  原报告记录值为 {(replayMeta.compatibility.recordedValue * 100).toFixed(2)}%，
+                  当前页面口径为 {(replayMeta.compatibility.currentValue * 100).toFixed(2)}%。
+                </p>
+              )}
+            </>
+          )}
+
+          {provenance && (
+            <div className="analysis-provenance-banner" role="status">
+              <ShieldCheck size={15} />
+              <div>
+                <strong>{narrativeLabel(provenance)}</strong>
+                <span>
+                  结构化卡片：Real Raise 确定性诊断 · 数字权威：
+                  {provenance.calculationAuthority === 'worker-deterministic' ? 'Worker 服务端重算' : '浏览器本地算表'}
+                  {' · '}公式 {provenance.calculationVersion}
+                  {' · '}归因 {provenance.attribution}
+                  {provenance.cached ? ' · 已命中相同输入缓存' : ''}
+                </span>
+              </div>
+            </div>
           )}
 
           <div className="insight-text-content">
@@ -965,11 +1021,11 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                   <div>
                     <h4>结构化诊断分析证据产物 (Artifact)</h4>
                     <p className="artifact-subtitle">
-                      {replayMeta
-                        ? '真实任务存档中的平台产物（回放，可在平台后台核验）'
-                        : keyConfigured
-                        ? '由分析平台产物与本地确定性算表导出的只读凭证'
-                        : '由本地确定性算表导出的只读凭证（演示模式）'}
+                      {provenance?.narrativeSource === 'infinisynapse-replay'
+                        ? '平台历史正文与 Real Raise 确定性诊断分层展示；回放口径见执行证明'
+                        : provenance?.narrativeSource === 'infinisynapse-live'
+                        ? '平台实时正文 + Real Raise 确定性数字凭证；两类来源不会混称'
+                        : 'Real Raise 本地模板与确定性算表导出的演示凭证'}
                     </p>
                   </div>
                   <span className="artifact-badge">REAL_RAISE_REPORT.md</span>
@@ -995,7 +1051,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                       className="btn-artifact-dl"
                       onClick={() => handleDownloadArtifact('explanation.md')}
                     >
-                      <Download size={13} /> 下载报告凭证 (explanation.md)
+                      <Download size={13} />
+                      {replayMeta ? '下载历史平台报告原文' : '下载报告凭证'} (explanation.md)
                     </button>
                     <button
                       type="button"
@@ -1004,6 +1061,31 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                     >
                       <Download size={13} /> 下载计算数据 (evidence.csv)
                     </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('analysis-manifest.json')}
+                    >
+                      <Download size={13} /> 下载当前执行清单 (analysis-manifest.json)
+                    </button>
+                    {replayMeta && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-artifact-dl secondary-dl"
+                          onClick={() => handleDownloadArtifact('vendor-original-evidence.csv')}
+                        >
+                          <Download size={13} /> 下载历史供应商证据原件
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-artifact-dl secondary-dl"
+                          onClick={() => handleDownloadArtifact('vendor-original-analysis-manifest.json')}
+                        >
+                          <Download size={13} /> 下载历史供应商清单原件
+                        </button>
+                      </>
+                    )}
                   </div>
                   {downloadError && <p className="download-error-text">{downloadError}</p>}
                 </div>

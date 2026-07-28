@@ -858,6 +858,33 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
   line-height: 1.6;
 }
 
+.replay-compatibility-warning {
+  border-color: rgba(245, 158, 11, .42);
+  background: rgba(245, 158, 11, .1);
+  color: var(--ink);
+}
+
+.replay-compatibility-warning strong {
+  color: #b45309;
+}
+.analysis-provenance-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(67, 122, 103, .3);
+  border-radius: 4px;
+  background: rgba(67, 122, 103, .07);
+  color: #2f6552;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.analysis-provenance-banner svg { flex: none; margin-top: 2px; }
+.analysis-provenance-banner strong,
+.analysis-provenance-banner span { display: block; }
+.analysis-provenance-banner span { margin-top: 2px; color: #52665e; }
+
 .footer-actions { display: flex; align-items: center; gap: 8px; }
 .btn-export-replay {
   display: inline-flex;
