@@ -27,11 +27,19 @@ import {
   HISTORICAL_SPENDING,
 } from '../data/officialHistorical'
 import { verifiedDataSources } from '../data/dataContract'
-import { RealRaiseApiClient, generateMockStructuredInsight } from '../api/apiClient'
-import type { AgentTaskStatus, AgentTaskEvent, StartAnalysisRequest } from '../api/realRaiseContract'
+import { RealRaiseApiClient, buildDeterministicStructuredInsight } from '../api/apiClient'
+import {
+  CALCULATION_VERSION,
+  type AgentTaskStatus,
+  type AgentTaskEvent,
+  type StartAnalysisRequest,
+} from '../api/realRaiseContract'
+import { buildAnalysisCityContext } from '../api/analysisContext'
+import { buildDiagnosticPacket } from '../api/diagnosticPacket'
 import { resolveCityBenchmark, resolveCityBenchmarkSet } from '../data/cityBenchmarks'
 import { DEMO_SCENARIOS } from '../data/demoScenarios'
 import { requestSignature } from '../api/requestSignature'
+import { buildReplayArtifacts } from '../api/replayClient'
 import {
   DEFAULT_ESTIMATE_RATIOS,
   EXAMPLE_PAYSLIP,
@@ -79,6 +87,8 @@ async function main() {
   const samplePayload: StartAnalysisRequest = {
     input: sampleInput,
     calculation: sampleCalc,
+    calculationVersion: CALCULATION_VERSION,
+    cityContext: buildAnalysisCityContext('340100'),
     locale: 'zh-CN',
     includeInsight: true,
   }
@@ -317,7 +327,7 @@ async function main() {
 
   // --- 测试组 6: Gate A 结构化分析契约与详细模式校验 ---
   await runTest('6.1 Gate A 结构化 Insight 格式校验 (structuredInsight)', () => {
-    const struct = generateMockStructuredInsight(samplePayload)
+    const struct = buildDeterministicStructuredInsight(samplePayload)
     assert(struct.version === 'v1', '版本号必须为 v1')
     assert(struct.drivers.length >= 3, '驱动因素必须至少包含 3 项')
     assert(struct.benchmark.userIncomeGrowthRate !== undefined, '基准对比必须包含用户收入增速')
@@ -339,7 +349,7 @@ async function main() {
         other: { currentAmount: 525, cpiRate: 0.093, nextAmount: 574 },
       },
     }
-    const struct = generateMockStructuredInsight(detailedPayload)
+    const struct = buildDeterministicStructuredInsight(detailedPayload)
     const subCategories = struct.drivers.filter((d) => ['food', 'utilities', 'transport', 'education', 'medical', 'other'].includes(d.id))
     assert(subCategories.length === 6, '详细模式下应输出 6 类细分驱动因素')
   })
@@ -383,6 +393,13 @@ async function main() {
     assert(Math.abs(result.monthlyRemainderChange - 7996) < 1e-9, '六类支出下降 5996 元后月结余变化必须实时反映')
   })
 
+  await runTest('6.5 诊断包驱动项必须与确定性月结余变化完全勾稽', () => {
+    const packet = buildDiagnosticPacket(samplePayload)
+    assert(Math.abs(packet.reconciliation.difference) < 1e-9, '收入、住房与日常支出驱动必须精确勾稽到月结余变化')
+    assert(packet.cityContext.cityCode === '340100', '诊断包必须携带页面选择的城市上下文')
+    assert(packet.scenarios.length === 4, '诊断包必须提供基准、住房、日常支出和保本收入四个确定性情景')
+  })
+
   // --- 测试组 7: CityBenchmark 契约 P0 断言 (合肥历史期、2026H1 回退与全国基准) ---
   await runTest('7.1 合肥 2024 (340100) 精确命中 A-history 且不标为 2026H1', () => {
     const res = resolveCityBenchmark('340100', 'foodAndTobaccoAlcohol', '2024')
@@ -407,6 +424,15 @@ async function main() {
     const categoryRecs = shanghaiSet.records.filter((r) => r.category !== 'overall')
     assert(categoryRecs.every((r) => r.usedFallback === true), '上海 2026H1 缺失的分类必须诚实标记为回退')
     assert(shanghaiSet.records.every((r) => r.record?.period === '2026H1'), '上海 2026H1 解析结果不得将 202606 月度数据混入')
+  })
+
+  await runTest('7.4 页面城市选择必须进入分析上下文且保留回退来源', () => {
+    const context = buildAnalysisCityContext('340100', '2026H1')
+    assert(context.cityCode === '340100' && context.cityName === '合肥', '分析上下文必须保留用户选择的合肥')
+    assert(context.coverageTier === 'C-fallback', '合肥当前期缺值必须在分析载荷中标为 C-fallback')
+    assert(context.overallCpiRate === 0.01, '全国回退综合 CPI 必须转换成十进制 0.01')
+    assert(context.overallSource?.scope.includes('全国') === true, '城市缺值时来源范围必须明确为全国')
+    assert(context.caveat.includes('回退全国') === true, '分析上下文必须携带诚实的回退说明')
   })
 
   // --- 测试组 8: 工资条模式确定性计算 (salarySlip) ---
@@ -452,13 +478,13 @@ async function main() {
       incomeInputMode: 'payslip',
       payslipSummary: computePayslip(EXAMPLE_PAYSLIP),
     }
-    const struct = generateMockStructuredInsight(payload)
+    const struct = buildDeterministicStructuredInsight(payload)
     const deductionDriver = struct.drivers.find((d) => d.id === 'deductions')
     assert(deductionDriver !== undefined, '工资条模式必须输出扣缴驱动因素')
     assert(deductionDriver!.monthlyImpact === -285, `扣缴驱动因素月度影响应为 -285，实际 ${deductionDriver!.monthlyImpact}`)
     assert(struct.summary.includes('未来账户'), '解读文本必须包含"未来账户"口径，不把养老公积金称为消失')
     const netPayload: StartAnalysisRequest = { ...samplePayload, incomeInputMode: 'net' }
-    const netStruct = generateMockStructuredInsight(netPayload)
+    const netStruct = buildDeterministicStructuredInsight(netPayload)
     assert(netStruct.drivers.every((d) => d.id !== 'deductions'), '到手模式不得虚构扣缴驱动因素')
   })
 
@@ -482,7 +508,7 @@ async function main() {
       JSON.stringify(calculateLivingCost(payload.input)) === JSON.stringify(payload.calculation),
       '工资条请求中的 calculation 必须可由写回后的到手输入复算',
     )
-    const struct = generateMockStructuredInsight(payload)
+    const struct = buildDeterministicStructuredInsight(payload)
     assert(struct.drivers.some((driver) => driver.id === 'deductions'), '工资条 AI 载荷必须包含扣缴驱动因素')
   })
 
@@ -508,7 +534,7 @@ async function main() {
       inputMode: 'detailed',
       detailedBreakdown,
     }
-    const struct = generateMockStructuredInsight(payload)
+    const struct = buildDeterministicStructuredInsight(payload)
     assert(payload.detailedBreakdown !== undefined, '详细模式必须提交六类明细')
     assert(struct.drivers.some((driver) => driver.id === 'food'), '详细模式 AI 载荷必须输出食品与餐饮驱动因素')
     assert(
@@ -616,20 +642,45 @@ async function main() {
 
   await runTest('10.1 回放清单：三个预设与工资条案例全部登记且签名唯一', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(replayDirectory, 'manifest.json'), 'utf8'))
-    assert(manifest.schemaVersion === 'replay-manifest.v1', '回放清单版本必须为 replay-manifest.v1')
+    assert(manifest.schemaVersion === 'replay-manifest.v2', '回放清单版本必须为 replay-manifest.v2')
     assert(manifest.replays.length === replayScenarioIds.length, `应登记 ${replayScenarioIds.length} 个真实回放`)
     assert(new Set(manifest.replays.map((item: any) => item.signature)).size === manifest.replays.length, '回放签名不得重复')
+    assert(
+      manifest.replays.every((item: any) => (
+        item.replaySchemaVersion === 'replay.v2'
+        && item.provenanceStatus === 'vendor-original-unaltered'
+        && item.compatibility?.status === 'legacy-calculation'
+      )),
+      'manifest 必须暴露每个回放的 schema、供应商原件状态与旧口径兼容状态',
+    )
   })
 
-  await runTest('10.2 回放包：签名、真实任务元数据与三份核心产物完整', () => {
+  await runTest('10.2 回放包：当前匹配请求与历史录制请求分离，供应商原件不可冒充', () => {
     for (const scenarioId of replayScenarioIds) {
       const fileName = `${scenarioId}.json`
       const replay = JSON.parse(fs.readFileSync(path.join(replayDirectory, fileName), 'utf8'))
       const previews = replay.completed?.workspace?.previews ?? {}
-      assert(replay.schemaVersion === 'replay.v1', `${fileName} 版本必须为 replay.v1`)
+      assert(replay.schemaVersion === 'replay.v2', `${fileName} 版本必须为 replay.v2`)
       assert(replay.scenarioId === scenarioId, `${fileName} 的 scenarioId 必须与文件名一致`)
       assert(typeof replay.vendorTaskId === 'string' && replay.vendorTaskId.length > 0, `${fileName} 必须保留真实任务 ID`)
       assert(requestSignature(replay.request) === replay.signature, `${fileName} 的请求签名必须可重算验证`)
+      assert(replay.request.calculationVersion === CALCULATION_VERSION, `${fileName} 当前匹配请求必须声明计算版本`)
+      assert(replay.request.cityContext.cityCode === '340100', `${fileName} 只能受控匹配默认合肥上下文`)
+      assert(replay.recordedRequest.calculationVersion === undefined, `${fileName} 不得给历史请求补写计算版本`)
+      assert(replay.recordedRequest.cityContext === undefined, `${fileName} 不得把当前城市上下文冒充历史平台输入`)
+      assert(
+        replay.request.calculation.realPurchasingPowerRate !== replay.recordedRequest.calculation.realPurchasingPowerRate,
+        `${fileName} 必须同时保留当前与录制时的购买力口径值`,
+      )
+      assert(
+        replay.provenance?.vendorArtifacts?.integrity === 'vendor-original-unaltered',
+        `${fileName} 必须声明供应商产物保持原样`,
+      )
+      assert(
+        replay.provenance?.compatibility?.recordedContextStatus === 'not-recorded'
+        && replay.provenance?.compatibility?.currentContextUsage === 'matching-only',
+        `${fileName} 必须说明城市上下文只用于当前匹配`,
+      )
       assert(Array.isArray(replay.events) && replay.events.length > 0, `${fileName} 必须包含真实事件流`)
       assert(typeof previews['explanation.md'] === 'string' && previews['explanation.md'].length > 500, `${fileName} 缺少完整 explanation.md`)
       assert(typeof previews['evidence.csv'] === 'string' && previews['evidence.csv'].length > 100, `${fileName} 缺少 evidence.csv`)
@@ -644,6 +695,8 @@ async function main() {
       const request: StartAnalysisRequest = {
         input: scenario.input,
         calculation: calculateLivingCost(scenario.input),
+        calculationVersion: CALCULATION_VERSION,
+        cityContext: buildAnalysisCityContext('340100', '2026H1'),
         locale: 'zh-CN',
         includeInsight: true,
         inputMode: 'basic',
@@ -666,6 +719,38 @@ async function main() {
       JSON.stringify(calculateLivingCost(replay.request.input)) === JSON.stringify(replay.request.calculation),
       '工资条回放的本地计算结果必须仍可由当前算法复算',
     )
+    assert(
+      replay.recordedRequest.payslipSummary?.futureAccountChange === 200,
+      '历史录制请求也必须保留原始工资条未来账户口径',
+    )
+  })
+
+  await runTest('10.5 回放下载：当前 evidence/manifest 与历史供应商原件分名保存', () => {
+    const replay = JSON.parse(fs.readFileSync(path.join(replayDirectory, 'take-home-raise-shrinks.json'), 'utf8'))
+    const vendorPreviews = replay.completed.workspace.previews
+    const artifacts = buildReplayArtifacts({
+      taskId: 'replay-audit-task',
+      vendorTaskId: replay.vendorTaskId,
+      request: replay.request,
+      sources: replay.completed.sources,
+      vendorPreviews,
+    })
+    assert(
+      artifacts.get('vendor-original-evidence.csv') === vendorPreviews['evidence.csv'],
+      '历史供应商 evidence 必须原样另存，不能覆盖后继续冒充当前凭证',
+    )
+    assert(
+      artifacts.get('vendor-original-analysis-manifest.json') === vendorPreviews['analysis-manifest.json'],
+      '历史供应商 manifest 必须原样另存',
+    )
+    assert(
+      artifacts.get('evidence.csv')?.includes(`real_purchasing_power_rate,${replay.request.calculation.realPurchasingPowerRate},`) === true,
+      '默认 evidence.csv 必须使用当前 living-cost.v2 数值',
+    )
+    const currentManifest = JSON.parse(artifacts.get('analysis-manifest.json') ?? '{}')
+    assert(currentManifest.generatedBy === 'real-raise-replay-current-calculation-adapter', '默认 manifest 必须声明由当前回放适配层生成')
+    assert(currentManifest.calculationVersion === CALCULATION_VERSION, '默认 manifest 必须使用当前公式版本')
+    assert(artifacts.get('explanation.md') === vendorPreviews['explanation.md'], 'explanation.md 必须保持历史平台原文')
   })
 
   // --- 测试组 11: InfiniSynapse 模型选择与签名算法 ---
@@ -673,6 +758,8 @@ async function main() {
     const baseRequest: StartAnalysisRequest = {
       input: sampleInput,
       calculation: sampleCalc,
+      calculationVersion: CALCULATION_VERSION,
+      cityContext: buildAnalysisCityContext('340100'),
       locale: 'zh-CN',
       includeInsight: true,
       inputMode: 'basic',
@@ -687,6 +774,16 @@ async function main() {
     assert(flashSig !== defaultSig, 'Flash 模型签名必须与平台默认签名不同')
     assert(proSig !== defaultSig, 'Pro 模型签名必须与平台默认签名不同')
     assert(flashSig !== proSig, 'Flash 模型与 Pro 模型签名必须互不相同')
+  })
+
+  await runTest('11.2 城市上下文与公式版本必须进入任务签名', () => {
+    const hefei = { ...samplePayload, cityContext: buildAnalysisCityContext('340100') }
+    const shanghai = { ...samplePayload, cityContext: buildAnalysisCityContext('310000') }
+    assert(requestSignature(hefei) !== requestSignature(shanghai), '切换城市后不得命中旧城市任务或回放')
+    assert(
+      requestSignature(hefei) !== requestSignature({ ...hefei, calculationVersion: 'legacy' as any }),
+      '切换确定性公式版本后不得命中旧口径缓存',
+    )
   })
 
   // --- 测试组 12: InfiniSynapse Partner SSO 体验层与错误翻译断言 ---

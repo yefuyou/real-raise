@@ -26,6 +26,10 @@ export function buildEvidenceCsv(
     ['next_rent', input.nextRent, 'user_input', '下一阶段预计月住房支出'],
     ['other_spend', input.otherSpend, 'user_input', '现在的月日常生活支出'],
     ['other_inflation_rate', input.otherInflationRate, 'derived_estimate', '2026H1 CPI 与 2025 城镇消费结构派生'],
+    ['city_code', request.cityContext.cityCode, 'user_input', request.cityContext.cityName],
+    ['city_period', request.cityContext.period, 'city_benchmark', request.cityContext.coverageTier],
+    ['city_overall_cpi_rate', request.cityContext.overallCpiRate, 'city_benchmark', request.cityContext.caveat],
+    ['calculation_version', request.calculationVersion, 'system_version', '本项目确定性计算版本'],
     ['income_growth_rate', calculation.incomeGrowthRate, 'local_calculation', '本项目确定性计算'],
     ['total_spend_growth_rate', calculation.totalSpendGrowthRate, 'local_calculation', '本项目确定性计算'],
     ['real_purchasing_power_rate', calculation.realPurchasingPowerRate, 'local_calculation', '本项目确定性计算'],
@@ -64,22 +68,29 @@ export function buildAnalysisManifest(options: {
   vendorTaskId: string | null
   request: StartAnalysisRequest
   sources: SourceReference[]
-  mode: 'byok' | 'mock'
+  mode: 'byok' | 'mock' | 'replay'
 }): string {
   return JSON.stringify(
     {
-      schemaVersion: 'real-raise.v1',
+      schemaVersion: 'real-raise.analysis.v2',
       taskId: options.taskId,
       vendorTaskId: options.vendorTaskId,
-      generatedBy: options.mode === 'byok' ? 'real-raise-browser-adapter' : 'real-raise-local-demo',
-      city: '全国',
-      period: '2026H1',
-      calculationAuthority: 'local',
+      generatedBy: options.mode === 'byok'
+        ? 'real-raise-browser-adapter'
+        : options.mode === 'replay'
+          ? 'real-raise-replay-current-calculation-adapter'
+          : 'real-raise-local-demo',
+      city: options.request.cityContext,
+      period: options.request.cityContext.period,
+      calculationAuthority: 'local-deterministic',
+      calculationVersion: options.request.calculationVersion,
       inputMode: options.request.inputMode ?? 'basic',
       incomeInputMode: options.request.incomeInputMode ?? 'net',
       calculation: options.request.calculation,
       sourceRefs: options.sources,
-      note: '所有金额由本地确定性公式计算，模型只负责解释；若平台未回传 workspace 文件，此清单由本地适配层生成。',
+      note: options.mode === 'replay'
+        ? '此清单由 Real Raise 按当前请求与 living-cost.v2 确定性生成；历史供应商原件另存为 vendor-original-analysis-manifest.json，不得混称。'
+        : '所有金额由本地确定性公式计算，模型只负责解释；若平台未回传 workspace 文件，此清单由本地适配层生成。',
     },
     null,
     2,

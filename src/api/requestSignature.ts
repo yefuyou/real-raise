@@ -20,6 +20,8 @@ export function requestMaterial(request: StartAnalysisRequest): string {
   return stableStringify({
     input: request.input ?? null,
     calculation: request.calculation ?? null,
+    calculationVersion: request.calculationVersion ?? null,
+    cityContext: request.cityContext ?? null,
     locale: request.locale ?? 'zh-CN',
     inputMode: request.inputMode ?? 'basic',
     incomeInputMode: request.incomeInputMode ?? 'net',

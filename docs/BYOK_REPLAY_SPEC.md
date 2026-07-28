@@ -28,15 +28,39 @@
 
 ## 3. 回放模式实现
 
-**数据格式**：`public/replays/{scenarioId}.json`
+**数据格式**：`public/replays/{scenarioId}.json`。历史包已升级为
+`replay.v2`；完整来源与迁移规则见 [REPLAY_PROVENANCE.md](./REPLAY_PROVENANCE.md)。
 
 ```json
 {
-  "schemaVersion": "replay.v1",
+  "schemaVersion": "replay.v2",
   "scenarioId": "take-home-raise-shrinks",
   "vendorTaskId": "<真实任务ID>",
   "recordedAt": "2026-07-2x",
-  "request": { "input": {}, "calculation": {}, "inputMode": "basic" },
+  "request": {
+    "input": {},
+    "calculation": {},
+    "calculationVersion": "living-cost.v2",
+    "cityContext": {},
+    "inputMode": "basic"
+  },
+  "recordedRequest": {
+    "input": {},
+    "calculation": {},
+    "inputMode": "basic"
+  },
+  "provenance": {
+    "vendorArtifacts": {
+      "origin": "infinisynapse-task-workspace",
+      "integrity": "vendor-original-unaltered",
+      "sha256": {}
+    },
+    "compatibility": {
+      "status": "legacy-calculation",
+      "recordedContextStatus": "not-recorded",
+      "currentContextUsage": "matching-only"
+    }
+  },
   "events": [ { "type": "started" }, { "type": "progress", "stage": "…", "message": "…", "percent": 10 } ],
   "completed": { "insight": "…", "sources": [], "workspace": { "artifacts": [], "previews": {} } }
 }
@@ -44,7 +68,9 @@
 
 - **录制**：演示账号真实跑一次，把收到的归一化事件流与 completed 载荷序列化落盘。做法任选：dev-only"导出回放"按钮（最简单，前端把事件数组 JSON.stringify 下载），或 node 脚本走后端跑。
 - **播放**：`apiClient` 增加 replay 分支，按事件序列定时回放（间隔可压缩至 2 倍速），completed 后产物照常可预览/下载。
-- **UI 标注**（必须）：`真实任务存档回放 · 任务 ID {vendorTaskId} · 录制于 {recordedAt} · 评委可在平台任务后台核验`。
+- **UI 标注**（必须）：旧任务显示
+  `历史真实任务存档（旧口径） · 任务 ID {vendorTaskId} · 录制于 {recordedAt}`，
+  同时明确原报告数值、当前页面数值以及历史任务没有城市上下文。
 - 4 条回放：3 个预设案例 + 1 个工资条示例案例。录制时同步录屏（视频素材两用），并把 4 个任务 ID 汇总进提交材料。
 
 ## 4. Key 输入与评委指引 UI

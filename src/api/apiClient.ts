@@ -56,6 +56,13 @@ export const OFFICIAL_SOURCES: SourceReference[] = [
   },
 ]
 
+function sourcesForRequest(request: StartAnalysisRequest): SourceReference[] {
+  const citySource = request.cityContext.overallSource
+  return citySource && !OFFICIAL_SOURCES.some((source) => source.url === citySource.url)
+    ? [...OFFICIAL_SOURCES, citySource]
+    : OFFICIAL_SOURCES
+}
+
 /**
  * 四态模式：
  * - `server-live`：生产站经 Cloudflare Worker 调用平台，浏览器不接触项目 Key；
@@ -111,7 +118,7 @@ export class RealRaiseApiClient {
     }
 
     if (loadApiKey()) {
-      const handle = startByokAnalysis(request, loadApiKey(), OFFICIAL_SOURCES)
+      const handle = startByokAnalysis(request, loadApiKey(), sourcesForRequest(request))
       return {
         taskId: handle.taskId,
         status: handle.status,
@@ -167,13 +174,14 @@ export class RealRaiseApiClient {
     if (taskId.startsWith('mock-task-')) {
       const stored = mockRequests.get(taskId)
       if (!stored) return null
-      if (fileName === 'evidence.csv') return buildEvidenceCsv(stored, OFFICIAL_SOURCES)
+      const sources = sourcesForRequest(stored)
+      if (fileName === 'evidence.csv') return buildEvidenceCsv(stored, sources)
       if (fileName === 'analysis-manifest.json') {
         return buildAnalysisManifest({
           taskId,
           vendorTaskId: null,
           request: stored,
-          sources: OFFICIAL_SOURCES,
+          sources,
           mode: 'mock',
         })
       }
@@ -206,6 +214,7 @@ export class RealRaiseApiClient {
   ): () => void {
     let cancelled = false
     const timers: number[] = []
+    const resultSources = sourcesForRequest(request)
     const push = (event: AgentTaskEvent, delayMs: number) => {
       const timer = globalThis.setTimeout(() => {
         if (!cancelled) onEvent(event)
@@ -261,8 +270,16 @@ export class RealRaiseApiClient {
       type: 'completed',
       taskId,
       insight: generateMockInsightText(request),
-      sources: OFFICIAL_SOURCES,
-      structuredInsight: generateMockStructuredInsight(request),
+      sources: resultSources,
+      structuredInsight: buildDeterministicStructuredInsight(request),
+      provenance: {
+        mode: 'mock',
+        narrativeSource: 'local-template',
+        structuredInsightSource: 'real-raise-deterministic',
+        calculationAuthority: 'local-deterministic',
+        calculationVersion: request.calculationVersion,
+        attribution: 'none',
+      },
     }, 3600)
 
     return () => {
@@ -307,6 +324,8 @@ function buildMockExplanationMarkdown(taskId: string, request: StartAnalysisRequ
     '',
     `- 任务 ID：${taskId}`,
     '- 生成方式：本地演示模式（未配置分析平台 API Key）',
+    `- 城市上下文：${request.cityContext.cityName}（${request.cityContext.cityCode}）· ${request.cityContext.period} · ${request.cityContext.coverageTier}`,
+    `- 确定性公式：${request.calculationVersion}`,
     '- 数据底座：本地确定性算表 + 2026 年上半年官方 CPI',
     '',
     '## 结论',
@@ -334,7 +353,11 @@ function buildMockExplanationMarkdown(taskId: string, request: StartAnalysisRequ
   ].join('\n')
 }
 
-export function generateMockStructuredInsight(request: StartAnalysisRequest) {
+/**
+ * Real Raise owns these cards. They are deterministic diagnostics derived
+ * from the authoritative request, never an InfiniSynapse model response.
+ */
+export function buildDeterministicStructuredInsight(request: StartAnalysisRequest) {
   const { input, calculation, inputMode, detailedBreakdown } = request
   const { raiseIncrease, rentIncrease, nextOtherSpend, monthlyRemainderChange } = calculation
   const otherDelta = Math.round(nextOtherSpend - input.otherSpend)
@@ -426,7 +449,7 @@ export function generateMockStructuredInsight(request: StartAnalysisRequest) {
   // 2025 Urban nominal disposable income growth = 4.3%
   // 2026H1 national CPI = 1.0%
   const urbanIncomeGrowthRate = 0.043
-  const overallCpiRate = 0.01
+  const overallCpiRate = request.cityContext.overallCpiRate
 
   const userIncomeGrowthRate = calculation.incomeGrowthRate
   const userCostGrowthRate = calculation.totalSpendGrowthRate
@@ -482,6 +505,7 @@ export function generateMockStructuredInsight(request: StartAnalysisRequest) {
   }
 
   const warnings = [
+    request.cityContext.caveat,
     '住房支出只是个人固定支出的一部分，不能用全国居住类指标替代某个家庭的实际支出；结果以用户输入为准。',
     '此解读由确定性数学算法与国家统计局公开数据生成，不代表第三方金融机构投资或借贷建议。',
   ]
@@ -495,16 +519,20 @@ export function generateMockStructuredInsight(request: StartAnalysisRequest) {
       userCostGrowthRate,
       urbanIncomeGrowthRate,
       overallCpiRate,
-      caveat: '个人收入结构、固定支出和消费结构与宏观平均存在差异，以实际输入为准。',
+      caveat: `${request.cityContext.cityName} ${request.cityContext.period}｜${request.cityContext.caveat} 个人收入结构、固定支出和消费结构仍以实际输入为准。`,
       sourceRefs: [
-        '国家统计局：2026 年上半年居民消费价格主要数据 (CPI 1—6 月平均 1.0%)',
+        request.cityContext.overallSource?.name
+          ?? '国家统计局：2026 年上半年居民消费价格主要数据',
         '国家统计局：2025 年居民收入和消费支出情况',
       ],
     },
     scenarios,
     trend,
     warnings,
-    sources: OFFICIAL_SOURCES,
+    sources: request.cityContext.overallSource
+      && !OFFICIAL_SOURCES.some((source) => source.url === request.cityContext.overallSource?.url)
+      ? [...OFFICIAL_SOURCES, request.cityContext.overallSource]
+      : OFFICIAL_SOURCES,
   }
 }
 

@@ -1,4 +1,9 @@
-import { InputError, validateAnalysisRequest } from './core.mjs'
+import {
+  InputError,
+  buildCompletedProvenance,
+  buildExecutionContext,
+  validateAnalysisRequest,
+} from './core.mjs'
 import { UpstreamError, runInfiniSynapseAnalysis } from './infiniSynapse.mjs'
 
 const MAX_BODY_BYTES = 20_000
@@ -797,10 +802,13 @@ async function handleAnalysis(request, env) {
 
       void (async () => {
         let outcome = 'failed'
+        const execution = buildExecutionContext(usingPartnerKey)
+        let completedVendorTaskId = null
         try {
           const result = await runInfiniSynapseAnalysis({
             requestId,
             request: analysisRequest,
+            execution,
             apiKey: usingPartnerKey ? ssoSession.apiKey : env.INFINISYNAPSE_API_KEY,
             baseUrl: env.INFINISYNAPSE_API_BASE_URL || 'https://app.infinisynapse.cn',
             timeoutMs: DEFAULT_TIMEOUT_MS,
@@ -808,12 +816,18 @@ async function handleAnalysis(request, env) {
             clientSignal: abortController.signal,
           })
           outcome = 'completed'
+          completedVendorTaskId = result.vendorTaskId
           send({
             type: 'completed',
             taskId: requestId,
             insight: result.insight,
             sources: result.sources,
             artifacts: result.artifacts,
+            provenance: buildCompletedProvenance({
+              execution,
+              request: analysisRequest,
+              vendorTaskId: result.vendorTaskId,
+            }),
           })
         } catch (error) {
           const known = error instanceof UpstreamError
@@ -830,6 +844,11 @@ async function handleAnalysis(request, env) {
             requestId,
             outcome,
             durationMs: Date.now() - startedAt,
+            analysisMode: execution.mode,
+            attribution: execution.attribution,
+            vendorTaskId: completedVendorTaskId,
+            calculationVersion: analysisRequest.calculationVersion,
+            cityCode: analysisRequest.cityContext.cityCode,
           }))
           if (!streamClosed) {
             streamClosed = true
