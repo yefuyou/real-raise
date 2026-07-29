@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="420" viewBox="0 0 1200 420"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Real Raise 真实涨薪</title>
+  <desc id="desc">把一笔税前涨薪拆成扣缴、到手增加、支出变化和真正留下的月结余。</desc>
+
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf8f3"/>
+      <stop offset="1" stop-color="#f1e9de"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="420" rx="28" fill="url(#paper)"/>
+  <path d="M64 68H676M64 352H676" fill="none" stroke="#ded5ca" stroke-width="2"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="64" y="54" fill="#a94734" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" font-weight="600" letter-spacing="2.4">
+      PERSONAL INCOME DIAGNOSTIC · CHINA
+    </text>
+
+    <text x="64" y="160" fill="#26221e" font-size="82" font-weight="800" letter-spacing="-3">REAL</text>
+    <text x="276" y="160" fill="#c85c44" font-size="82" font-weight="800" letter-spacing="-3">RAISE</text>
+    <text x="64" y="218" fill="#26221e" font-family="Georgia, 'Songti SC', serif"
+          font-size="44" font-weight="700">真实涨薪</text>
+
+    <text x="64" y="278" fill="#5c544b" font-size="26">别只看税前涨了多少。</text>
+    <text x="64" y="315" fill="#5c544b" font-size="26">看扣缴与生活支出之后，最后真正留下多少。</text>
+
+    <text x="64" y="386" fill="#7e756c" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" letter-spacing="1.1">
+      DETERMINISTIC MATH  /  OFFICIAL DATA  /  AI EXPLANATION
+    </text>
+  </g>
+
+  <g transform="translate(736 30)">
+    <rect x="8" y="10" width="402" height="360" rx="20" fill="#26221e" opacity=".07"/>
+    <rect width="402" height="360" rx="20" fill="#fffdf9" stroke="#d7cbbd" stroke-width="2"/>
+
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+      <text x="28" y="40" fill="#a94734" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="18" font-weight="600" letter-spacing="1.5">一笔示例涨薪</text>
+      <text x="374" y="40" text-anchor="end" fill="#7e756c"
+            font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18">/ 月</text>
+
+      <path d="M28 64H374" stroke="#ded5ca" stroke-width="2" stroke-dasharray="5 6"/>
+
+      <text x="28" y="104" fill="#5c544b" font-size="21">税前涨薪</text>
+      <text x="374" y="104" text-anchor="end" fill="#c85c44" font-size="25" font-weight="700">+ ¥1,000</text>
+
+      <text x="28" y="145" fill="#5c544b" font-size="21">扣缴增量</text>
+      <text x="374" y="145" text-anchor="end" fill="#437a67" font-size="25" font-weight="700">− ¥285</text>
+
+      <rect x="22" y="167" width="358" height="54" rx="8" fill="#f1e9de"/>
+      <text x="40" y="201" fill="#26221e" font-size="21" font-weight="650">到手增加</text>
+      <text x="362" y="201" text-anchor="end" fill="#c85c44" font-size="27" font-weight="750">= ¥715</text>
+
+      <text x="28" y="260" fill="#5c544b" font-size="21">住房与日常支出增量</text>
+      <text x="374" y="260" text-anchor="end" fill="#437a67" font-size="25" font-weight="700">− ¥449</text>
+
+      <path d="M28 286H374" stroke="#26221e" stroke-width="2"/>
+      <text x="28" y="330" fill="#26221e" font-size="22" font-weight="700">真实月结余</text>
+      <text x="374" y="332" text-anchor="end" fill="#c85c44" font-family="Georgia, 'Songti SC', serif"
+            font-size="48" font-weight="700">+ ¥266</text>
+    </g>
+  </g>
+</svg>

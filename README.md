@@ -1,113 +1,163 @@
-# 你的涨薪，消失在到手之前了吗？
-
-## Real Raise · 真实涨薪
-
-> 把税前工资、个税、社保公积金和生活支出拆开，看清真正到手的变化。
-
-`确定性计算 + AI 解释分离` · `33/33 自动化断言通过` · `TypeScript 严格检查` · `每个数字带官方来源`
-
 <p align="center">
-  <img src="./docs/assets/real-raise-hero.png" alt="Real Raise 将收入变化拆成扣缴、生活支出和可支配结余" width="100%" />
+  <img src="./assets/readme/hero.svg" width="100%" alt="Real Raise 真实涨薪：把税前涨薪拆成扣缴、到手增加、支出变化和真实月结余">
 </p>
 
-Real Raise 是一个面向中国职场人的个人收入诊断工具。它不只问"工资涨了多少"，而是继续追问：
+<p align="center">
+  <a href="https://plain-wind-ae46.yefuyou2333.workers.dev/"><strong>在线体验 →</strong></a>
+  ·
+  <a href="#30-秒上手">30 秒上手</a>
+  ·
+  <a href="#它如何算">计算方法</a>
+  ·
+  <a href="#数据可信度">数据口径</a>
+</p>
+
+<p align="center">
+  <code>React</code> <code>TypeScript</code> <code>Cloudflare Workers</code> <code>InfiniSynapse</code>
+</p>
+
+Real Raise 是一个面向中国职场人的个人收入诊断工具。输入现在与下一阶段的工资、扣缴和生活支出，它会回答一个比“涨了多少”更实际的问题：
+
+> 经过个税、社保公积金和生活支出之后，这次涨薪每月真正还能留下多少？
+
+所有核心金额都由本地确定性公式计算。AI 只读取计算结果与来源做解释，不负责改数字。
+
+<p align="center">
+  <img src="./assets/readme/product-overview.png" width="100%" alt="Real Raise 工资条模式：左侧拆解两期工资与扣缴，右侧给出真实月结余和 AI 解读入口">
+</p>
+<p align="center"><sub>工资条模式的真实界面；示例数据一键填入，可逐项覆盖。</sub></p>
+
+## 先看懂这一笔涨薪
+
+点击“工资条 → 填入示例”，Real Raise 会把一笔税前涨薪沿同一条账本拆开：
+
+| 账本变化 | 对真实月结余的影响 |
+| --- | ---: |
+| 税前工资增加 | `+ ¥1,000` |
+| 个税、社保与公积金增加 | `− ¥285` |
+| 真正到手增加 | `= ¥715` |
+| 住房与日常支出增加 | `− ¥449` |
+| **最终每月多留下** | **`+ ¥266`** |
+
+养老保险与住房公积金会单独标注为“未来保障与账户积累”，不会被笼统写成“消失”。
+
+## 它能做什么
+
+- **两种收入入口**：直接比较到手收入，或逐项录入两期工资条。
+- **拆清涨薪去向**：展示个税、养老、医疗、失业、公积金与其他扣缴的变化。
+- **把生活成本算进去**：支持住房支出与六类日常消费，并允许手动覆盖价格变化率。
+- **对照公开基准**：使用全国与城市 CPI、收入和消费数据；缺失城市不会被插值伪造。
+- **先给结论，再解释原因**：同时输出月度/年度结余、维持原生活所需月入和变化瀑布。
+- **可选 AI 解读**：InfiniSynapse 根据确定性结果与来源生成解释、情景和证据产物。
+
+## 它如何算
+
+<p align="center">
+  <img src="./assets/readme/calculation-chain.svg" width="100%" alt="两期工资条与生活支出经过本地确定性计算和官方价格基准生成真实结余；AI 只读取结果与来源进行解释">
+</p>
+
+核心链路只有一条：
 
 ```text
 税前收入
-  ↓ 扣除个税、社保、公积金（养老与公积金单独标注为"未来账户积累"，不称为消失）
-真正到手
-  ↓ 扣除日常生活支出（按 2026H1 官方 CPI 估算，可手动调整）
-可支配结余
+  − 个税、社保、公积金与其他扣缴
+= 真正到手
+  − 住房与日常生活支出
+= 可支配结余
 ```
 
----
+关键实现：
 
-## 30 秒评委路径
+- [`src/domain/salarySlip.ts`](./src/domain/salarySlip.ts)：工资条估算、扣缴汇总与到手计算。
+- [`src/domain/livingCost.ts`](./src/domain/livingCost.ts)：生活成本、购买力与结余变化。
+- [`worker/core.mjs`](./worker/core.mjs)：请求校验、签名会话、限流与额度保护。
+- [`worker/infiniSynapse.mjs`](./worker/infiniSynapse.mjs)：AI 解释层适配，不参与核心金额计算。
 
-1. 打开页面 → 收入区切到**工资条模式** → 点**填入示例**
-2. 看"涨薪去哪儿了（税前 → 到手）"瀑布：个税、社保公积金、未来账户各拿走多少
-3. 看月/年结余变化与"维持原生活需月入"
-4. 点 **AI 解读**：真实 InfiniSynapse 任务产出带来源的解释与三份可下载产物（explanation.md / evidence.csv / analysis-manifest.json）
+## 30 秒上手
 
-## 为什么做它
+### 在线体验
 
-工资条上的涨幅，不等于银行卡里真正多出来的钱。个税、社保、公积金改变当月到手；食品、交通、医疗、教育等日常支出，又决定最后能留下多少。Real Raise 把这些放进一条可核对的链路：
+1. 打开 [Real Raise 在线版](https://plain-wind-ae46.yefuyou2333.workers.dev/)。
+2. 在收入区切换到 **工资条**，点击 **填入示例**。
+3. 查看“税前 → 到手”扣缴拆解、月/年结余与维持原生活所需月入。
+4. 使用存档回放、Mock 演示，或登录 InfiniSynapse 生成个性化解读。
 
-> **收入变化 → 扣缴变化 → 到手变化 → 生活成本变化 → 可支配结余变化**
+### 本地运行
 
-**所有核心金额由本地确定性公式计算。模型只负责解释、对比和生成情景，不负责改数字。**
-
-## 功能一览
-
-| 功能 | 说明 | 状态 |
-| --- | --- | --- |
-| 到手模式 | 直接填两期到手收入，最快出结论 | ✅ |
-| 工资条模式 | 税前 + 个税/养老/医疗/失业/公积金/其他扣缴分开输入，本地算出到手与"税前 → 到手"瀑布 | ✅ |
-| 一键估算扣缴 | 按国家统一月度个税公式 + 通用比例预填（标注"估算"、可覆盖），并可按用户当前实际费率推算下一阶段 | ✅ |
-| 六类支出详细模式 | 食品/水电/交通/教育/医疗/其他，按 2026H1 分类 CPI 单独调整 | ✅ |
-| 城市价格基准卡 | 北京/上海/深圳 2026H1、合肥 2024 已核验样本；缺失城市诚实回退全国基准，绝不插值冒充 | ✅ |
-| 历史基准对比 | 2021–2025 官方收入、消费与 CPI（含"官方未公布"字段的如实展示） | ✅ |
-| AI 解读（Mock） | 本地模拟状态机，零额度、免登录体验完整流程 | ✅ |
-| AI 解读（真实链路） | SSE 进度流 + Task Workspace 三产物 + 同输入哈希缓存 + 401/429/5xx 可读降级 | ✅ 本地后端就绪 |
-| 评委模式 + 真实回放 | 评委口令换取短时会话；项目 Key 仅在 Worker Secret；无权限时保留回放 | ✅ 三个预设 + 一个工资条回放已接入 |
-| Cloudflare Server API 适配层 | 服务端 Secret、评委短时会话、固定 Prompt、请求校验、60 秒限速、每日硬上限、并发保险丝 | 🟡 代码与本地校验完成，待 Cloudflare 授权和真实链路盖章 |
-
-## 数据与模型原则
-
-**数字由确定性公式负责**：核心计算在 [`src/domain/livingCost.ts`](./src/domain/livingCost.ts) 与 [`src/domain/salarySlip.ts`](./src/domain/salarySlip.ts)。平台返回的文字不能覆盖本地数字。
-
-**四分法标注**：`verified` 官方核验原值 ｜ `derived` 派生估算 ｜ `user-input` 用户输入 ｜ `forecast` 显式标注假设的情景预测。
-
-**2026 CPI 使用边界**：截至 2026-07，国家统计局公布到 6 月（1–6 月全国 CPI 同比 +1.0%）。项目将 2026H1 八类 CPI 作为观察基准而非官方预测，用户可手动调整。
-
-**城市三档口径**：有已核验分类数据 → 显示城市基准并标明期间与来源；只有综合 CPI → 仅作价格背景；缺失 → 回退全国基准并明确提示。住房支出永远以用户输入优先。
-
-## InfiniSynapse 集成
-
-InfiniSynapse 是解释层，不是计算器：读取官方统计数据、解释结果为何升降、对比全国/城市基准、输出带年份与统计范围的引用。
-
-- **当前已部署形态**：同一个 Cloudflare Worker 同时提供静态站与后端 API。体验者默认看到回放；只有评委输入口令后，才可发起真实分析。
-- **比赛准入补丁**：生产链路为“静态站 → 评委口令换取短时签名会话 → Worker → InfiniSynapse”。项目 Key 和评委口令只存在 Worker Secret；限流或达到每日硬上限时回放降级。
-- **本地备用形态**：保留 Node 后端用于开发与现场备用；同输入哈希缓存与进行中去重保护额度，供应商异常映射为可读降级提示。
-- 官方统计基准双轨：演示账号登记为**平台数据源 + 知识库**（含数据口径字典）；BYOK 实时任务采用 prompt 内联来源索引，保证任意账号可复现。
-
-## 本地运行
+需要 Node.js 22+。
 
 ```bash
-npm install
-npm run dev          # 前端（Mock 模式零额度）
-npm run server       # 可选：真实链路后端（.env.local 配 INFINISYNAPSE_API_KEY）
-npm run test         # 33 项自动化断言（含四个真实回放包完整性与命中校验）
-npm run server:test  # 后端集成测试（含缓存与降级断言，不消耗额度）
-npm run worker:test  # Worker 输入边界与每日保险丝（不调用真实平台）
-npm run worker:check # Wrangler 干跑；需要 Node.js 22+
-npm run verify && npm run build
+git clone https://github.com/yefuyou/real-raise.git
+cd real-raise
+npm ci
+npm run dev
 ```
 
-## 部署
+默认本地开发使用 Mock 模式，不需要 API Key，也不会消耗平台额度。
 
-保留现有 `workers.dev` URL，由同一个 Worker 托管前端静态资源与 `/api/*`；不迁移前端、不购买域名。详见 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
+```bash
+npm test             # 确定性计算、数据与回放断言
+npm run worker:test  # Worker 边界、会话、限流与额度保护
+npm run build        # TypeScript 严格检查 + 生产构建
+npm run worker:check # Cloudflare 配置干跑
+```
 
-## 文档地图
+## 产品能力
 
-| 文档 | 内容 |
+| 模块 | 用户得到什么 | 当前状态 |
+| --- | --- | --- |
+| 到手模式 | 最短路径比较两期可支配结余 | 可用 |
+| 工资条模式 | 两期税前、个税、社保、公积金与到手拆解 | 可用 |
+| 生活支出 | 住房 + 六类日常消费的个性化变化 | 可用 |
+| 城市与历史基准 | 全国、北京、上海、深圳、合肥及 2021–2025 历史参考 | 可用，按数据覆盖显式回退 |
+| AI 演示 | Mock 状态机与真实任务存档回放 | 免登录可用 |
+| AI 真实链路 | SSE 进度、三份产物、缓存与可读降级 | 需平台登录或评委授权 |
+| Cloudflare 服务层 | 静态站与 `/api/*` 同源、Secret 隔离、限流与每日硬上限 | 已接入 |
+
+## 数据可信度
+
+每一个数都属于以下四类之一：
+
+| 标签 | 含义 |
 | --- | --- |
-| [PROJECT_PLAN](./docs/PROJECT_PLAN.md) / [NEXT_STAGE_PLAN](./docs/NEXT_STAGE_PLAN.md) | 产品定位、边界与阶段计划 |
-| [BYOK_REPLAY_SPEC](./docs/BYOK_REPLAY_SPEC.md) | BYOK + 真实回放三态实施方案 |
-| [PAYSLIP_UX_SPEC](./docs/PAYSLIP_UX_SPEC.md) | 工资条一键估算与版面改造方案 |
-| [INFINISYNAPSE_TASK_CONTRACT](./docs/INFINISYNAPSE_TASK_CONTRACT.md) / [INTEGRATION_BOUNDARY](./docs/INFINISYNAPSE_INTEGRATION_BOUNDARY.md) | 平台任务契约与隔离边界 |
-| [CITY_BENCHMARK_CONTRACT](./docs/CITY_BENCHMARK_CONTRACT.md) / [DATA_DICTIONARY](./docs/DATA_DICTIONARY.md) | 城市数据契约与数据口径字典 |
-| [DEPLOYMENT](./docs/DEPLOYMENT.md) / [DEMO_RELEASE_CHECKLIST](./docs/DEMO_RELEASE_CHECKLIST.md) | 部署与发布检查清单 |
-| [SUBMISSION_MATERIALS](./docs/SUBMISSION_MATERIALS.md) / [VIDEO_SCRIPT_PACK](./docs/VIDEO_SCRIPT_PACK.md) / [WEIBO_POSTS](./docs/WEIBO_POSTS.md) | 参赛提交、视频脚本与传播材料 |
+| `verified` | 从公开统计来源核验的原值 |
+| `derived` | 基于明确公式得到的派生值 |
+| `user-input` | 用户输入，不伪装成官方数据 |
+| `forecast` | 显式标注假设的情景预测 |
 
-## 安全边界
+- **2026 CPI 边界**：使用 2026 年上半年已公布数据作为观察基准，不冒充全年或下一年度官方预测。
+- **城市数据三档**：分类数据完整时使用城市基准；只有综合 CPI 时只作价格背景；缺失时回退全国基准并明确提示。
+- **住房支出优先级**：始终以用户实际输入为准，城市“居住类 CPI”不替代房租或房贷。
+- **官方未公布就留空**：不通过插值或相邻年份补齐缺失事实。
 
-不会提交或上传：InfiniSynapse API Key 及任何 Secret；`.env` 文件；用户工资条、银行流水与个人扣缴明细；未脱敏任务日志；没有来源、年份和统计范围的数字。平台数据源仅登记国家统计局公开数据。
+详见 [`DATA_DICTIONARY.md`](./docs/DATA_DICTIONARY.md) 与 [`CITY_BENCHMARK_CONTRACT.md`](./docs/CITY_BENCHMARK_CONTRACT.md)。
 
-## 比赛
+## AI 与安全边界
 
-本项目参加 [InfiniSynapse × CSDN Vibe Coding 泛数据分析应用开发大赛](https://infinisynapse.cn/contest/vibe-coding)。
+InfiniSynapse 是解释层，不是计算器。当前代码支持 Partner SSO、评委短时会话、真实任务回放与本地 Mock；平台不可用、达到额度或没有授权时，确定性算表仍然可用。
 
-比赛演示不做宏观数据大屏，而是在 30 秒内让用户看懂：
+项目不会提交或上传：
 
-> **这次涨薪，经过扣缴和生活支出之后，真正留在我手里的还有多少？**
+- InfiniSynapse API Key、Partner Secret、评委口令及其他 Secret；
+- 用户工资条、银行流水或个人扣缴明细；
+- 未脱敏的任务日志；
+- 没有来源、年份与统计范围的数据。
+
+生产部署由同一个 Cloudflare Worker 托管静态资源与 API。项目 Key 只存在 Worker Secret；接口同时设置短时会话、请求校验、速率限制、每日硬上限和并发保险丝。
+
+## 文档入口
+
+| 文档 | 用途 |
+| --- | --- |
+| [`DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | Cloudflare 部署、Secrets 与发布检查 |
+| [`INFINISYNAPSE_INTEGRATION_BOUNDARY.md`](./docs/INFINISYNAPSE_INTEGRATION_BOUNDARY.md) | 确定性计算与 AI 解释的职责边界 |
+| [`INFINISYNAPSE_TASK_CONTRACT.md`](./docs/INFINISYNAPSE_TASK_CONTRACT.md) | 任务输入、进度事件与产物契约 |
+| [`PAYSLIP_UX_SPEC.md`](./docs/PAYSLIP_UX_SPEC.md) | 工资条估算、口径与交互方案 |
+| [`DATA_DICTIONARY.md`](./docs/DATA_DICTIONARY.md) | 数据来源、字段与标签口径 |
+| [`SUBMISSION_MATERIALS.md`](./docs/SUBMISSION_MATERIALS.md) | 比赛演示与提交材料 |
+
+## 项目背景
+
+Real Raise 参加 [InfiniSynapse × CSDN Vibe Coding 泛数据分析应用开发大赛](https://infinisynapse.cn/contest/vibe-coding)。它不做宏观数据大屏，而是争取在 30 秒内回答：
+
+> 这次涨薪，经过扣缴和生活支出之后，真正留在我手里的还有多少？

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="520" viewBox="0 0 1200 520"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Real Raise 的确定性计算与 AI 解释链路</title>
+  <desc id="desc">两期工资条和生活支出进入本地确定性公式，结合官方价格基准生成结余结果；AI 只读取结果和来源进行解释，不能覆盖本地数字。</desc>
+
+  <rect width="1200" height="520" rx="28" fill="#26221e"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="56" y="62" fill="#fffaf4" font-size="38" font-weight="750">确定性计算负责数字，AI 只负责解释</text>
+    <text x="1144" y="62" text-anchor="end" fill="#b8aa9b"
+          font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="1.4">
+      REAL RAISE / DATA FLOW
+    </text>
+
+    <g transform="translate(56 112)">
+      <g>
+        <rect width="238" height="190" rx="14" fill="#302c28" stroke="#5f574f" stroke-width="2"/>
+        <text x="24" y="38" fill="#c68a35" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="18" font-weight="700" letter-spacing="1">01 / INPUT</text>
+        <text x="24" y="88" fill="#fffaf4" font-size="26" font-weight="700">两期工资条</text>
+        <text x="24" y="124" fill="#fffaf4" font-size="26" font-weight="700">与生活支出</text>
+        <text x="24" y="164" fill="#b8aa9b" font-size="20">用户输入优先</text>
+      </g>
+
+      <g transform="translate(282)">
+        <rect width="238" height="190" rx="14" fill="#302c28" stroke="#5f574f" stroke-width="2"/>
+        <text x="24" y="38" fill="#c68a35" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="18" font-weight="700" letter-spacing="1">02 / LOCAL MATH</text>
+        <text x="24" y="88" fill="#fffaf4" font-size="26" font-weight="700">确定性公式</text>
+        <text x="24" y="124" fill="#fffaf4" font-size="26" font-weight="700">拆解每一笔</text>
+        <text x="24" y="164" fill="#b8aa9b" font-size="20">TypeScript 本地计算</text>
+      </g>
+
+      <g transform="translate(564)">
+        <rect width="238" height="190" rx="14" fill="#302c28" stroke="#5f574f" stroke-width="2"/>
+        <text x="24" y="38" fill="#c68a35" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="18" font-weight="700" letter-spacing="1">03 / BENCHMARK</text>
+        <text x="24" y="88" fill="#fffaf4" font-size="26" font-weight="700">官方 CPI</text>
+        <text x="24" y="124" fill="#fffaf4" font-size="26" font-weight="700">与城市基准</text>
+        <text x="24" y="164" fill="#b8aa9b" font-size="20">缺失则显式回退</text>
+      </g>
+
+      <g transform="translate(846)">
+        <rect width="238" height="190" rx="14" fill="#fffaf4" stroke="#c85c44" stroke-width="2"/>
+        <text x="24" y="38" fill="#a94734" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="18" font-weight="700" letter-spacing="1">04 / RESULT</text>
+        <text x="24" y="88" fill="#26221e" font-size="26" font-weight="750">真实月 / 年结余</text>
+        <text x="24" y="124" fill="#26221e" font-size="26" font-weight="750">与变化来源</text>
+        <text x="24" y="164" fill="#7e756c" font-size="20">金额、瀑布与阈值</text>
+      </g>
+
+      <g fill="none" stroke="#b8aa9b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M246 95h24"/>
+        <path d="M528 95h24"/>
+        <path d="M810 95h24"/>
+      </g>
+      <g fill="#b8aa9b">
+        <path d="M270 95l-9-7v14z"/>
+        <path d="M552 95l-9-7v14z"/>
+        <path d="M834 95l-9-7v14z"/>
+      </g>
+    </g>
+
+    <g transform="translate(56 350)">
+      <rect width="1088" height="112" rx="14" fill="#1f1c19" stroke="#5f574f" stroke-width="2"/>
+      <rect width="10" height="112" rx="5" fill="#437a67"/>
+      <text x="32" y="43" fill="#8fc3af" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="18" font-weight="700" letter-spacing="1.2">AI EXPLANATION LANE</text>
+      <text x="32" y="81" fill="#fffaf4" font-size="22">读取计算结果与来源 → 解释原因、生成情景、输出证据文件</text>
+      <text x="1058" y="67" text-anchor="end" fill="#c68a35" font-size="22" font-weight="700">不可覆盖本地数字</text>
+    </g>
+  </g>
+</svg>
