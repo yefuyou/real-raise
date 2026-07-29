@@ -168,7 +168,7 @@ export type StartAnalysisRequest = {
   /** 工资条模式的本地确定性摘要；仅 payslip 模式下随请求提交。 */
   payslipSummary?: PayslipSummary
   simulatedError?: boolean
-  /** 显式选择的分析模型；未指定时跟随平台默认。 */
+  /** @deprecated 历史兼容字段；当前产品 UI 不暴露模型选择，也不会发送。 */
   analysisModel?: AnalysisModel
 }
 
