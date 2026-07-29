@@ -22,6 +22,7 @@
 - 请求体上限 20 KB，金额和通胀率都有范围校验。
 - CORS 只允许 `ALLOWED_ORIGINS` 中的现有静态站。
 - Cloudflare Rate Limiting：同一来源每 60 秒最多 1 次。
+- InfiniSynapse 长任务默认最多运行 10 分钟（`ANALYSIS_TIMEOUT_MS=600000`，部署环境可在 1–15 分钟范围内调节）。
 - Durable Object 硬保险丝：北京时间每天最多 10 次真实调用，同时最多 1 个任务。
 - Worker 不保存工资输入或分析结果；Durable Object 只保存日期、调用数和短期 lease。
 - 达到限速、每日上限或 Live 关闭时，前端优先进入真实存档回放，再进入本地演示。

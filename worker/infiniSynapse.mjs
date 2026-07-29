@@ -18,6 +18,21 @@ const ROUTES = {
   previewFile: '/api/ai_task/previewFile',
 }
 
+export const INFINISYNAPSE_AGENT_MODE = 'act'
+
+export const REAL_RAISE_AUTO_APPROVAL_SETTINGS = Object.freeze({
+  maxRequests: 24,
+  maxSubAgentRequests: 0,
+  databaseReturnLimit: 100,
+  delegateMaxConcurrency: 1,
+  enableNotifications: false,
+  debugMode: false,
+  enableWebSearch: false,
+  enableReadImage: false,
+  enableBrowser: false,
+  enableMap: false,
+})
+
 export class UpstreamError extends Error {
   constructor(code, message, status = 502, retryable = true) {
     super(message)
@@ -88,6 +103,75 @@ function containsVendorError(value) {
   })
 }
 
+function findAgentMessage(value) {
+  if (Array.isArray(value)) {
+    for (const child of value) {
+      const message = findAgentMessage(child)
+      if (message) return message
+    }
+    return null
+  }
+  if (!isRecord(value)) return null
+  if (
+    (value.type === 'ask' || value.type === 'say')
+    && (typeof value.ask === 'string' || typeof value.say === 'string')
+  ) {
+    return value
+  }
+  for (const child of Object.values(value)) {
+    const message = findAgentMessage(child)
+    if (message) return message
+  }
+  return null
+}
+
+export function detectVendorInteraction(value) {
+  const message = findAgentMessage(value)
+  if (message?.type !== 'ask' || message.partial === true) return null
+  return typeof message.ask === 'string' && message.ask !== 'completion_result'
+    ? message.ask
+    : null
+}
+
+export function buildAgentNewTaskPayload({ vendorTaskId, connId, text }) {
+  return {
+    type: 'newTask',
+    taskId: vendorTaskId,
+    connId,
+    chatSettings: { mode: INFINISYNAPSE_AGENT_MODE },
+    autoApprovalSettings: { ...REAL_RAISE_AUTO_APPROVAL_SETTINGS },
+    text,
+  }
+}
+
+export function buildPlanToAgentRecoveryPayloads({ vendorTaskId, connId }) {
+  return [
+    {
+      type: 'autoApprovalSettings',
+      taskId: vendorTaskId,
+      connId,
+      autoApprovalSettings: { ...REAL_RAISE_AUTO_APPROVAL_SETTINGS },
+    },
+    {
+      type: 'togglePlanActMode',
+      taskId: vendorTaskId,
+      connId,
+      chatSettings: { mode: INFINISYNAPSE_AGENT_MODE },
+    },
+    {
+      type: 'askResponse',
+      taskId: vendorTaskId,
+      connId,
+      askResponse: 'messageResponse',
+      text: [
+        '该任务已由 Real Raise 产品预先批准，并已切换到智能体（ACT）模式。',
+        '不要再次调用 plan、switch_mode、plan_mode_response 或 update_plan。',
+        '请立即执行原任务，实际写入 explanation.md，然后提交 completion_result。',
+      ].join(''),
+    },
+  ]
+}
+
 function conciseProgressMessage(eventName, payload) {
   const raw = textFrom(payload).replace(/\s+/g, ' ').trim()
   if (!raw || raw.length > 180 || /^[{[]/.test(raw)) {
@@ -132,7 +216,7 @@ async function parseJsonResponse(response) {
   return unwrap(payload)
 }
 
-async function consumeVendorStream(reader, requestId, onEvent, signal) {
+async function consumeVendorStream(reader, requestId, onEvent, signal, onInteraction) {
   const decoder = new TextDecoder()
   let buffer = ''
   let finalText = ''
@@ -164,6 +248,25 @@ async function consumeVendorStream(reader, requestId, onEvent, signal) {
       if (text && text.length <= 8_000) finalText = text
       if (containsVendorError(payload)) {
         throw new UpstreamError('UPSTREAM_TASK_FAILED', text || '分析平台任务失败。')
+      }
+
+      const interaction = detectVendorInteraction(payload)
+      if (interaction) {
+        finalText = ''
+        const recovered = await onInteraction?.(interaction)
+        if (!recovered) {
+          const message = interaction === 'upload_file_to_sandbox'
+            ? '分析平台意外请求上传文件，当前任务仅允许使用已注入的版本化上下文。'
+            : `分析平台要求未支持的交互：${interaction}。`
+          throw new UpstreamError('UPSTREAM_INTERACTION_REQUIRED', message, 502, true)
+        }
+        onEvent({
+          type: 'progress',
+          taskId: requestId,
+          stage: '已切换智能体模式',
+          message: '平台曾返回规划请求，现已明确切换到智能体模式并继续执行。',
+          percent: 45,
+        })
       }
 
       if (eventName === 'state.ready') {
@@ -204,10 +307,15 @@ async function consumeVendorStream(reader, requestId, onEvent, signal) {
 }
 
 async function readArtifacts(vendorFetch, vendorTaskId) {
-  const artifacts = {}
+  const result = {
+    artifacts: {},
+    workspaceAvailable: false,
+    explanationAvailable: false,
+  }
   try {
     const workspaceResponse = await vendorFetch(ROUTES.workspace(vendorTaskId))
     const workspace = await parseJsonResponse(workspaceResponse)
+    result.workspaceAvailable = true
     const files = normalizeFiles(workspace)
       .filter((file) => ['explanation', 'evidence', 'manifest'].includes(file.kind))
       .slice(0, 6)
@@ -224,7 +332,10 @@ async function readArtifacts(vendorFetch, vendorTaskId) {
           : isRecord(preview) && typeof preview.content === 'string'
             ? preview.content
             : ''
-        if (content && content.length <= 250_000) artifacts[file.name] = content
+        if (content && content.length <= 250_000) {
+          result.artifacts[file.name] = content
+          if (file.name === 'explanation.md') result.explanationAvailable = true
+        }
       } catch {
         // A single missing preview must not discard a completed analysis.
       }
@@ -232,12 +343,12 @@ async function readArtifacts(vendorFetch, vendorTaskId) {
   } catch {
     // Local text artifacts below preserve the evidence boundary.
   }
-  return artifacts
+  return result
 }
 
 export function sealAuthoritativeArtifacts(
   artifacts,
-  { requestId, vendorTaskId, request, execution },
+  { requestId, vendorTaskId, request, execution, artifactStatus = 'verified' },
 ) {
   const sealed = { ...artifacts }
   const authoritativeNames = [
@@ -261,6 +372,7 @@ export function sealAuthoritativeArtifacts(
     vendorTaskId,
     request,
     execution,
+    artifactStatus,
   })
   return sealed
 }
@@ -314,7 +426,27 @@ export async function runInfiniSynapseAnalysis({
     }
 
     const reader = eventsResponse.body.getReader()
-    consumePromise = consumeVendorStream(reader, requestId, onEvent, controller.signal)
+    let planRecoverySent = false
+    const recoverInteraction = async (interaction) => {
+      if (interaction !== 'plan_mode_response') return false
+      if (planRecoverySent) return true
+      planRecoverySent = true
+      for (const payload of buildPlanToAgentRecoveryPayloads({ vendorTaskId, connId })) {
+        const response = await vendorFetch(ROUTES.message, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        await parseJsonResponse(response)
+      }
+      return true
+    }
+    consumePromise = consumeVendorStream(
+      reader,
+      requestId,
+      onEvent,
+      controller.signal,
+      recoverInteraction,
+    )
     void consumePromise.catch(() => undefined)
 
     if (request.analysisModel) {
@@ -333,30 +465,43 @@ export async function runInfiniSynapseAnalysis({
 
     const messageResponse = await vendorFetch(ROUTES.message, {
       method: 'POST',
-      body: JSON.stringify({
-        type: 'newTask',
-        taskId: vendorTaskId,
+      body: JSON.stringify(buildAgentNewTaskPayload({
+        vendorTaskId,
         connId,
-        chatSettings: { mode: 'act' },
         text: buildPrompt(request),
-      }),
+      })),
     })
     await parseJsonResponse(messageResponse)
 
     const finalText = await consumePromise
-    const vendorArtifacts = await readArtifacts(vendorFetch, vendorTaskId)
+    const workspaceResult = await readArtifacts(vendorFetch, vendorTaskId)
+    const vendorArtifacts = workspaceResult.artifacts
     // The platform owns the narrative. Real Raise always owns the numeric
     // evidence and execution manifest, so stale model-generated percentages
     // can never become authoritative downloads.
-    const artifacts = sealAuthoritativeArtifacts(vendorArtifacts, {
+    const platformExplanation = vendorArtifacts['explanation.md']?.trim()
+    const insight = platformExplanation || finalText
+    if (!insight) {
+      throw new UpstreamError(
+        'UPSTREAM_ARTIFACT_MISSING',
+        '分析平台已结束任务，但没有返回可核验的报告正文。',
+        502,
+        true,
+      )
+    }
+    const artifactStatus = workspaceResult.explanationAvailable
+      ? 'verified'
+      : 'stream-fallback'
+    // The fallback is explicitly marked in the manifest; it must never be
+    // presented as a verified workspace report.
+    const sealedArtifacts = sealAuthoritativeArtifacts(vendorArtifacts, {
       requestId,
       vendorTaskId,
       request,
       execution,
+      artifactStatus,
     })
-    const platformExplanation = artifacts['explanation.md']?.trim()
-    const insight = platformExplanation || finalText || '分析已完成，但平台没有返回可预览的正文。'
-    if (!artifacts['explanation.md']) artifacts['explanation.md'] = insight
+    if (!sealedArtifacts['explanation.md']) sealedArtifacts['explanation.md'] = insight
     completed = true
     const sources = request.cityContext.overallSource
       && !OFFICIAL_SOURCES.some((source) => source.url === request.cityContext.overallSource.url)
@@ -366,15 +511,16 @@ export async function runInfiniSynapseAnalysis({
     return {
       insight,
       sources,
-      artifacts,
+      artifacts: sealedArtifacts,
       vendorTaskId,
+      artifactStatus,
     }
   } catch (error) {
     const abortedBeforeCatch = controller.signal.aborted
     if (!controller.signal.aborted) controller.abort(error)
     if (consumePromise) await consumePromise.catch(() => undefined)
     if (timedOut) {
-      throw new UpstreamError('ANALYSIS_TIMEOUT', '实时分析超过 3 分钟，已安全停止。', 504, true)
+      throw new UpstreamError('ANALYSIS_TIMEOUT', '实时分析超过 10 分钟仍未完成，已安全停止。', 504, true)
     }
     if (abortedBeforeCatch) {
       throw new UpstreamError('ANALYSIS_CANCELLED', '实时分析已取消。', 499, true)

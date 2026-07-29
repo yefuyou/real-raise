@@ -21,7 +21,6 @@ import {
 } from 'lucide-react'
 import { apiClient, buildDeterministicStructuredInsight } from '../api/apiClient'
 import { requestSignature } from '../api/requestSignature'
-import { JudgeAccessPanel } from './JudgeAccessPanel'
 import { PartnerSsoPanel } from './PartnerSsoPanel'
 import { authClient, formatFriendlyAuthErrorMessage, type AuthState } from '../api/authClient'
 import type {
@@ -52,16 +51,29 @@ type AnalysisInputContext = {
 
 function executionLabel(provenance: AnalysisExecutionProvenance | null): string {
   if (!provenance) return '分析结果已生成'
-  if (provenance.mode === 'partner-live') return 'InfiniSynapse 用户实时任务已完成'
-  if (provenance.mode === 'judge-live') return 'InfiniSynapse 评委实时任务已完成'
-  if (provenance.mode === 'replay') return 'InfiniSynapse 历史任务存档回放'
-  return '本地演示结果已生成'
+  const fallbackSuffix = provenance.artifactStatus === 'stream-fallback'
+    ? '（平台未回传报告文件，使用事件流正文）'
+    : provenance.artifactStatus === 'deterministic-only'
+      ? '（仅确定性凭证）'
+      : ''
+  if (provenance.mode === 'partner-live') return `InfiniSynapse 用户实时任务已完成${fallbackSuffix}`
+  if (provenance.mode === 'judge-live') return `InfiniSynapse 实时任务已完成${fallbackSuffix}`
+  if (provenance.mode === 'replay') return `InfiniSynapse 历史任务存档回放${fallbackSuffix}`
+  return `本地演示结果已生成${fallbackSuffix}`
 }
 
 function narrativeLabel(provenance: AnalysisExecutionProvenance): string {
   if (provenance.narrativeSource === 'infinisynapse-live') return '正文：InfiniSynapse 实时任务'
   if (provenance.narrativeSource === 'infinisynapse-replay') return '正文：InfiniSynapse 历史任务存档'
   return '正文：Real Raise 本地演示模板'
+}
+
+function artifactStatusLabel(status?: AnalysisExecutionProvenance['artifactStatus']): string {
+  if (status === 'verified') return '平台报告文件已核验'
+  if (status === 'stream-fallback') return '平台未回传报告文件，使用事件流正文'
+  if (status === 'deterministic-only') return '仅有 Real Raise 确定性凭证'
+  if (status === 'failed-retryable') return '平台证据不完整，可重试'
+  return '产物状态未声明'
 }
 
 /** Helper to render inline **bold** text without dangerouslySetInnerHTML */
@@ -257,6 +269,34 @@ function AnalysisBlock({
   )
 }
 
+function AnalysisContextSummary({
+  provenance,
+  requestPayload,
+}: {
+  provenance: AnalysisExecutionProvenance
+  requestPayload: StartAnalysisRequest
+}) {
+  return (
+    <details className="analysis-context-details">
+      <summary>查看本次分析上下文</summary>
+      <div className="analysis-context-grid">
+        <div><span>Prompt 版本</span><strong>{provenance.promptVersion || '历史任务未记录'}</strong></div>
+        <div><span>上下文版本</span><strong>{provenance.contextVersion || '历史任务未记录'}</strong></div>
+        <div><span>任务目标</span><strong>{provenance.taskGoal || '判断涨薪留存与主要抵消因素'}</strong></div>
+        <div><span>计算版本</span><strong>{provenance.calculationVersion}</strong></div>
+        <div><span>城市口径</span><strong>{requestPayload.cityContext.cityName} · {requestPayload.cityContext.period} · {requestPayload.cityContext.coverageTier}</strong></div>
+        <div><span>来源 IDs</span><strong>{provenance.sourceIds?.join('、') || '历史任务未记录'}</strong></div>
+        <div><span>执行模式</span><strong>{provenance.mode} · {provenance.attribution}</strong></div>
+        <div><span>产物状态</span><strong>{artifactStatusLabel(provenance.artifactStatus)}</strong></div>
+      </div>
+      <p className="analysis-context-boundary">
+        数字权威：Real Raise 确定性算表；InfiniSynapse 负责排序、比较、解释和报告表达。
+        {provenance.inputSignature ? ` 输入签名：${provenance.inputSignature}` : ''}
+      </p>
+    </details>
+  )
+}
+
 export const InsightSection: React.FC<InsightSectionProps> = ({
   requestPayload,
   analysisValidationMessage = null,
@@ -277,13 +317,11 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [simulatedError] = useState<boolean>(false)
   const serverLiveConfigured = apiClient.getActiveMode() === 'server-live'
-  const [judgeUnlocked, setJudgeUnlocked] = useState<boolean>(false)
   const [authState, setAuthState] = useState<AuthState>(() => authClient.getState())
   const [taskInputContext, setTaskInputContext] = useState<AnalysisInputContext | null>(null)
   const [reportInputContext, setReportInputContext] = useState<AnalysisInputContext | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
-  const lastServerModeRef = useRef<'partner' | 'judge'>('partner')
 
   useEffect(() => {
     const unsub = authClient.subscribe((st) => setAuthState(st))
@@ -372,15 +410,11 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   }, [remoteFeatureEnabled])
 
   const handleStartInsight = async (
-    serverMode?: 'partner' | 'judge',
     forceSimulatedError?: boolean
   ) => {
     if (!remoteFeatureEnabled || analysisValidationMessage || startInFlightRef.current) return
     startInFlightRef.current = true
     setIsStarting(true)
-    const activeServerMode = serverMode ?? lastServerModeRef.current
-    lastServerModeRef.current = activeServerMode
-
     const runVersion = runVersionRef.current + 1
     runVersionRef.current = runVersion
     unsubscribeRef.current?.()
@@ -428,7 +462,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         calculationVersion: payload.calculationVersion,
       }
       setTaskInputContext(runInputContext)
-      const response = await apiClient.startAnalysis(payload, activeServerMode)
+      const response = await apiClient.startAnalysis(payload)
       const newTaskId = response.taskId
       if (runVersion !== runVersionRef.current) {
         await apiClient.cancelAnalysis(newTaskId)
@@ -479,7 +513,6 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     } catch (err: any) {
       if (runVersion !== runVersionRef.current) return
       activeTaskIdRef.current = null
-      if (serverLiveConfigured) setJudgeUnlocked(false)
       setStatus('failed')
       setErrorMessage(formatFriendlyAuthErrorMessage(err.code || err.name, err.message))
       setTaskInputContext(null)
@@ -618,31 +651,33 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               结合官方 CPI 数据与您的收支输入，生成定制化 AI 生活解读报告。
             </p>
 
-            {/* --- 三态入口：回放、Partner 实时、Judge 实时 --- */}
-            <div className="analysis-mode-section partner-user-section">
-              <PartnerSsoPanel />
-              {authState.authenticated && authState.canRunAnalysis !== false && (
-                <div className="user-mode-controls">
-                  <div className="mode-identity-tag">
-                    <span className="identity-badge user-badge">👤 当前模式：使用我的 InfiniSynapse 账号（消耗个人额度）</span>
+            {/* --- 两条用户路径：Partner 实时、未登录真实回放 --- */}
+            {serverLiveConfigured && (
+              <div className="analysis-mode-section partner-user-section">
+                <PartnerSsoPanel />
+                {authState.authenticated && authState.canRunAnalysis !== false && (
+                  <div className="user-mode-controls">
+                    <div className="mode-identity-tag">
+                      <span className="identity-badge user-badge">👤 当前模式：使用我的 InfiniSynapse 账号（消耗个人额度）</span>
+                    </div>
+                    <button
+                      className="btn-generate-insight btn-user-mode"
+                      onClick={() => handleStartInsight()}
+                      disabled={isStarting || Boolean(analysisValidationMessage)}
+                      type="button"
+                    >
+                      <Sparkles size={16} /> 使用我的 InfiniSynapse 账号生成 AI 深度解读
+                    </button>
                   </div>
-                  <button
-                    className="btn-generate-insight btn-user-mode"
-                    onClick={() => handleStartInsight('partner')}
-                    disabled={isStarting || Boolean(analysisValidationMessage)}
-                    type="button"
-                  >
-                    <Sparkles size={16} /> 使用我的 InfiniSynapse 账号生成 AI 深度解读
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {/* 未登录只允许播放与当前输入精确匹配的真实任务存档。 */}
-            {(!authState.authenticated || authState.canRunAnalysis === false) && !judgeUnlocked && (
+            {(!authState.authenticated || authState.canRunAnalysis === false) && (
               <button
                 className="btn-generate-insight"
-                onClick={() => handleStartInsight('partner')}
+                onClick={() => handleStartInsight()}
                 disabled={isStarting || authState.loading || Boolean(analysisValidationMessage)}
                 type="button"
               >
@@ -650,35 +685,9 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               </button>
             )}
 
-            {serverLiveConfigured && (
-              <div className="analysis-mode-section judge-mode-controls">
-                <JudgeAccessPanel
-                  unlocked={judgeUnlocked}
-                  onChange={setJudgeUnlocked}
-                />
-                {judgeUnlocked && (
-                  <div className="judge-active-box">
-                    <div className="mode-identity-tag">
-                      <span className="identity-badge judge-badge">⚖️ 当前模式：评委实时任务（使用服务端项目 Key）</span>
-                    </div>
-                    <button
-                      className="btn-generate-insight btn-judge-mode"
-                      onClick={() => handleStartInsight('judge')}
-                      disabled={isStarting || Boolean(analysisValidationMessage)}
-                      type="button"
-                    >
-                      <Zap size={16} /> 以评委模式生成报告
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
             <span className="quota-hint">
               {serverLiveConfigured
-                ? judgeUnlocked
-                  ? '评委模式已解锁：由 Cloudflare Worker 服务端调用项目 Key，浏览器不接触密钥。'
-                  : authState.authenticated
+                ? authState.authenticated
                   ? '已登录：使用你的 InfiniSynapse 账号生成实时报告。'
                   : '未登录：查看真实任务回放；登录后可生成个人实时报告。'
                 : '当前未连接实时服务：仅提供真实任务回放。'}
@@ -731,9 +740,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                 {replayMeta.compatibility ? '历史真实任务存档（旧口径）' : '真实任务存档回放'}
                 {' · '}任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
                 供应商原件未改写（完整性已审计） ·
-                {serverLiveConfigured
-                  ? '评委可在分析平台任务后台核验；实时服务恢复后可再次生成。'
-                  : '评委可在分析平台任务后台核验；登录 InfiniSynapse 后可实时重跑。'}
+                {'登录 InfiniSynapse 后可实时重跑。'}
               </p>
               {replayMeta.compatibility && (
                 <p className="replay-banner replay-compatibility-warning" role="alert">
@@ -760,6 +767,10 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                 </span>
               </div>
             </div>
+          )}
+
+          {provenance && (
+            <AnalysisContextSummary provenance={provenance} requestPayload={requestPayload} />
           )}
 
           <div className="insight-text-content">
@@ -1038,13 +1049,10 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               <p>{errorMessage}</p>
             </div>
           </div>
-          <PartnerSsoPanel />
-          {serverLiveConfigured && !judgeUnlocked && (
-            <JudgeAccessPanel unlocked={judgeUnlocked} onChange={setJudgeUnlocked} />
-          )}
+          {serverLiveConfigured && <PartnerSsoPanel />}
           <button
             className="btn-retry"
-            onClick={() => handleStartInsight(undefined, false)}
+            onClick={() => handleStartInsight(false)}
             disabled={isStarting || Boolean(analysisValidationMessage)}
             type="button"
           >
@@ -1054,10 +1062,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       ) : status === 'cancelled' ? (
         <div className="insight-body cancelled-state">
           <p className="cancelled-note">任务已取消。您的本地输入与精准计算数字已被完整保留。</p>
-          <PartnerSsoPanel />
-          {serverLiveConfigured && !judgeUnlocked && (
-            <JudgeAccessPanel unlocked={judgeUnlocked} onChange={setJudgeUnlocked} />
-          )}
+          {serverLiveConfigured && <PartnerSsoPanel />}
           <button
             className="btn-restart"
             onClick={() => handleStartInsight()}

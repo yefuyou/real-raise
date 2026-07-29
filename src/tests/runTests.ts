@@ -823,6 +823,9 @@ async function main() {
 
     const cancelled = formatFriendlyAuthErrorMessage('LOGIN_CANCELLED')
     assert(cancelled.includes('登录授权已取消'), 'LOGIN_CANCELLED 应提示取消授权')
+
+    const timeout = formatFriendlyAuthErrorMessage('ANALYSIS_TIMEOUT')
+    assert(timeout.includes('超过 10 分钟') && timeout.includes('本地算表'), 'ANALYSIS_TIMEOUT 应明确说明超时清理与本地算表不受影响')
   })
 
   await runTest('12.3 AuthClient canRunAnalysis 标志与双模式配置测试', () => {
@@ -837,6 +840,35 @@ async function main() {
 
     client.setMockUser(null)
     assert(client.getState().canRunAnalysis === false, 'setMockUser(null) 时 canRunAnalysis 必须重置为 false')
+  })
+
+  await runTest('12.4 未配置 Worker 时 AuthClient 不发起认证请求也不产生错误', async () => {
+    const originalFetch = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = (async () => {
+      calls += 1
+      throw new Error('本地静态模式不应该触发 fetch')
+    }) as typeof fetch
+    try {
+      const client = new AuthClient()
+      const state = await client.checkAuth()
+      assert(calls === 0, 'API 地址为空时不得调用 /api/auth/me')
+      assert(state.loading === false, '本地静态模式认证检查应立即结束')
+      assert(state.error === null && state.errorCode === null, '本地静态模式不得产生线上认证错误')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  await runTest('12.5 运行状态矩阵：本地隐藏 SSO，产品不暴露 Judge/BYOK 入口', () => {
+    const insightSource = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'InsightSection.tsx'), 'utf8')
+    const authSource = fs.readFileSync(path.join(process.cwd(), 'src', 'api', 'authClient.ts'), 'utf8')
+    assert(insightSource.includes('{serverLiveConfigured && (\n              <div className="analysis-mode-section partner-user-section">'), 'Partner 面板必须受 server-live 能力开关保护')
+    assert(!insightSource.includes('JudgeAccessPanel'), '产品界面不得挂载 Judge 面板')
+    assert(!insightSource.includes('评委专属实时模式'), '产品界面不得暴露评委实时入口')
+    assert(!insightSource.includes('自带 API Key'), '产品界面不得恢复 BYOK 文案')
+    assert(authSource.includes('if (!isAuthConfigured())'), 'AuthClient 必须对本地静态模式短路')
+    assert(authSource.includes("startUrl.searchParams.set('return_origin', window.location.origin)"), '本地 SSO 必须把发起登录的 Origin 绑定到 OAuth flow')
   })
 
   console.log(`\n================ ALL ${passedCount} AUTOMATED TESTS PASSED ================\n`)

@@ -23,6 +23,7 @@
     "DAILY_LIVE_LIMIT": "10",
     "PARTNER_DAILY_LIVE_LIMIT": "20",
     "MAX_INFLIGHT": "1",
+    "ANALYSIS_TIMEOUT_MS": "600000",
     "JUDGE_SESSION_TTL_MINUTES": "360"
   },
   "secrets": {

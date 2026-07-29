@@ -9,11 +9,24 @@ interface PartnerSsoPanelProps {
 export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = '' }) => {
   const [authState, setAuthState] = useState<AuthState>(() => authClient.getState())
   const [avatarError, setAvatarError] = useState(false)
+  const [authAttempted, setAuthAttempted] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      return Boolean(params.get('auth_error') || params.get('error'))
+        || sessionStorage.getItem('real_raise_auth_attempt') === '1'
+    } catch {
+      return false
+    }
+  })
 
   useEffect(() => {
     const unsubscribe = authClient.subscribe((state) => {
       setAuthState(state)
       setAvatarError(false)
+      if (state.authenticated) {
+        setAuthAttempted(false)
+        try { sessionStorage.removeItem('real_raise_auth_attempt') } catch { /* private mode */ }
+      }
     })
     void authClient.checkAuth()
     return unsubscribe
@@ -24,6 +37,12 @@ export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = ''
   const displayName = user?.nickname || user?.name || 'Infini 用户'
   const initialLetter = displayName.trim().charAt(0).toUpperCase() || 'U'
   const avatarUrl = user?.avatarUrl || user?.avatar
+
+  const handleLogin = () => {
+    setAuthAttempted(true)
+    try { sessionStorage.setItem('real_raise_auth_attempt', '1') } catch { /* private mode */ }
+    authClient.login()
+  }
 
   return (
     <div className={`partner-sso-panel ${className}`}>
@@ -82,7 +101,7 @@ export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = ''
             <button
               type="button"
               className="btn-sso-login"
-              onClick={() => authClient.login()}
+              onClick={handleLogin}
             >
               <LogIn size={15} /> 使用 InfiniSynapse 登录并生成深度报告
             </button>
@@ -94,7 +113,7 @@ export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = ''
         </div>
       )}
 
-      {(error || errorCode) && (
+      {authAttempted && (error || errorCode) && (
         <div className="sso-error-banner" role="alert">
           <span>{formatFriendlyAuthErrorMessage(errorCode, error)}</span>
         </div>

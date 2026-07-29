@@ -96,6 +96,14 @@ export type AnalysisExecutionProvenance = {
   attribution: 'partner-user-key' | 'judge-project-key' | 'none'
   vendorTaskId?: string
   cached?: boolean
+  promptVersion?: string
+  contextVersion?: string
+  taskGoal?: string
+  sourceIds?: string[]
+  inputSignature?: string
+  artifactStatus?: 'verified' | 'stream-fallback' | 'deterministic-only' | 'failed-retryable'
+  /** 仅 Judge 模式可见的脱敏 Prompt 快照；Partner/回放不下发原文。 */
+  promptPreview?: string
 }
 
 export type ReplayCompatibility = {

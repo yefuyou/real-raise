@@ -3,7 +3,7 @@ import type {
   AgentTaskStatus,
   StartAnalysisRequest,
 } from './realRaiseContract'
-import { loadJudgeAccessToken } from './judgeAccessClient'
+import { loadAuthSessionToken } from './authClient'
 
 declare const __REAL_RAISE_ANALYSIS_API_URL__: string | undefined
 
@@ -163,8 +163,7 @@ export function isServerAnalysisConfigured(): boolean {
 }
 
 export async function startServerAnalysis(
-  request: StartAnalysisRequest,
-  mode: 'partner' | 'judge' = 'judge'
+  request: StartAnalysisRequest
 ): Promise<{
   taskId: string
   status: AgentTaskStatus
@@ -176,17 +175,11 @@ export async function startServerAnalysis(
   let response: Response
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'X-Real-Raise-Mode': mode,
+    'X-Real-Raise-Mode': 'partner',
     'X-Real-Raise-Session': makeSessionId(),
   }
-  if (mode === 'judge') {
-    const judgeToken = loadJudgeAccessToken()
-    if (!judgeToken) {
-      throw new ServerAnalysisUnavailable('请先输入评委口令。', 'JUDGE_TOKEN_REQUIRED', 401, false)
-    }
-    headers['X-Real-Raise-Judge'] = 'true'
-    headers.Authorization = `Bearer ${judgeToken}`
-  }
+  const authSessionToken = loadAuthSessionToken()
+  if (authSessionToken) headers.Authorization = `Bearer ${authSessionToken}`
 
   try {
     response = await fetch(`${API_BASE_URL}/api/analysis`, {

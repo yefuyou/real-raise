@@ -16,6 +16,9 @@ export const OFFICIAL_SOURCES = [
 ]
 
 export const CALCULATION_VERSION = 'living-cost.v2'
+export const PROMPT_VERSION = 'diagnosis.v2.1-agent-act'
+export const CONTEXT_VERSION = 'real-raise.context.v2'
+export const TASK_GOAL = '判断这次涨薪真正留下了多少、主要被什么抵消，以及哪个变量最容易让结论逆转。'
 
 const TOP_LEVEL_KEYS = new Set([
   'input',
@@ -82,7 +85,8 @@ export function buildExecutionContext(usingPartnerKey) {
     : { mode: 'judge-live', attribution: 'judge-project-key' }
 }
 
-export function buildCompletedProvenance({ execution, request, vendorTaskId, cached = false }) {
+export function buildCompletedProvenance({ execution, request, vendorTaskId, cached = false, artifactStatus = 'verified' }) {
+  const context = buildAnalysisContext(request)
   return {
     mode: execution.mode,
     narrativeSource: 'infinisynapse-live',
@@ -91,6 +95,13 @@ export function buildCompletedProvenance({ execution, request, vendorTaskId, cac
     calculationVersion: request.calculationVersion,
     attribution: execution.attribution,
     vendorTaskId,
+    promptVersion: PROMPT_VERSION,
+    contextVersion: CONTEXT_VERSION,
+    taskGoal: TASK_GOAL,
+    sourceIds: context.source_index.map((source) => source.source_id),
+    inputSignature: context.provenance.input_signature,
+    artifactStatus,
+    ...(execution.mode === 'judge-live' ? { promptPreview: buildPrompt(request) } : {}),
     ...(cached ? { cached: true } : {}),
   }
 }
@@ -469,54 +480,124 @@ export function validateAnalysisRequest(value) {
   }
 }
 
-export function buildPrompt(request) {
-  const detailed = request.detailedBreakdown
-    ? JSON.stringify(request.detailedBreakdown, null, 2)
-    : '未开启详细分类模式。'
-  const payslip = request.payslipSummary
-    ? JSON.stringify(request.payslipSummary, null, 2)
-    : '用户直接填写到手收入，未拆解工资条扣缴。'
+function stableStringify(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  const record = value
+  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(',')}}`
+}
+
+function fnvSignature(text) {
+  let h1 = 0x811c9dc5
+  let h2 = 0xcbf29ce4
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    h1 ^= code
+    h1 = Math.imul(h1, 0x01000193) >>> 0
+    h2 ^= code
+    h2 = Math.imul(h2, 0x01000197) >>> 0
+  }
+  return `${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`
+}
+
+export function buildInputSignature(request) {
+  return fnvSignature(stableStringify({
+    input: request.input ?? null,
+    calculation: request.calculation ?? null,
+    calculationVersion: request.calculationVersion ?? null,
+    cityContext: request.cityContext ?? null,
+    locale: request.locale ?? 'zh-CN',
+    inputMode: request.inputMode ?? 'basic',
+    incomeInputMode: request.incomeInputMode ?? 'net',
+    detailedBreakdown: request.detailedBreakdown ?? null,
+    payslipSummary: request.payslipSummary ?? null,
+  }))
+}
+
+function buildSourceIndex(request) {
   const sourceList = request.cityContext.overallSource
     && !OFFICIAL_SOURCES.some((source) => source.url === request.cityContext.overallSource.url)
     ? [...OFFICIAL_SOURCES, request.cityContext.overallSource]
     : OFFICIAL_SOURCES
-  const sourceIndex = sourceList
-    .map((source) => `- ${source.name}｜${source.year}｜${source.scope}｜${source.url}`)
-    .join('\n')
-  const diagnosticPacket = buildDiagnosticPacket(request)
-  const driverRanking = buildDriverRanking(request)
-  const scenarioMatrix = buildScenarioMatrix(request)
+  return sourceList.map((source, index) => ({
+    source_id: `source-${index + 1}`,
+    name: source.name,
+    year: source.year,
+    scope: source.scope,
+    url: source.url,
+  }))
+}
+
+export function buildAnalysisContext(request) {
+  return {
+    schema_version: CONTEXT_VERSION,
+    prompt_version: PROMPT_VERSION,
+    task_goal: TASK_GOAL,
+    input_snapshot: {
+      input: request.input,
+      input_mode: request.inputMode ?? 'basic',
+      income_input_mode: request.incomeInputMode ?? 'net',
+      detailed_breakdown: request.detailedBreakdown ?? null,
+      payslip_context: request.payslipSummary ?? null,
+    },
+    deterministic_calculation: {
+      calculation_version: request.calculationVersion,
+      result: request.calculation,
+      authority: 'real-raise-worker-deterministic',
+    },
+    diagnostic_packet: buildDiagnosticPacket(request),
+    driver_ranking: buildDriverRanking(request),
+    scenario_matrix: buildScenarioMatrix(request),
+    payslip_context: request.payslipSummary ?? {
+      status: 'not-provided',
+      note: '用户直接填写到手收入，未拆解工资条扣缴。',
+    },
+    city_context: request.cityContext,
+    methodology_and_boundaries: {
+      user_input_precedes_macro_average: true,
+      city_fallback_must_be_explicit: true,
+      pension_and_housing_fund_are_future_account_accumulation: true,
+      prohibited_advice: ['投资', '借贷', '辞职'],
+      model_may: ['排序', '比较', '解释', '识别敏感变量', '生成报告正文'],
+      model_may_not: ['重算金额', '修改金额', '编造数据', '覆盖确定性证据'],
+    },
+    source_index: buildSourceIndex(request),
+    provenance: {
+      calculation_version: request.calculationVersion,
+      input_signature: buildInputSignature(request),
+      generated_by: 'real-raise-worker',
+    },
+  }
+}
+
+export function buildPrompt(request) {
+  const context = buildAnalysisContext(request)
+  const contextJson = JSON.stringify(context, null, 2)
 
   return [
-    '你是 Real Raise 的真实涨薪诊断 Agent。当前请求已授权，直接执行，不要询问确认，不要调用 web_search/web_fetch。',
-    '只使用下面给出的服务端确定性计算结果和官方来源索引；不得重算、覆盖、纠正或擅自四舍五入任何金额。',
+    '你是 Real Raise 的真实涨薪诊断 Agent。当前任务明确运行在智能体（ACT）模式，不是规划（PLAN）模式。',
+    '当前请求已经由产品预先授权：立即执行并交付结果，不要输出“准备如何做”的计划，不要询问确认，不要切换到 PLAN 模式。',
+    '不要调用 plan、switch_mode、plan_mode_response、update_plan、web_search 或 web_fetch；完成本任务不需要联网或外部写入。',
+    `任务契约：${PROMPT_VERSION}；上下文版本：${CONTEXT_VERSION}。`,
+    '下面的 JSON 是唯一分析上下文。只允许在其中进行排序、比较和解释，不得重算、覆盖、纠正或擅自四舍五入任何金额。',
     '',
-    '【不可违反的边界】',
-    '1. 用户输入的到手收入、住房和日常支出优先于宏观平均。',
-    '2. 城市数据缺失时明确说明已回退全国基准，不要编造城市值。',
-    '3. 不提供投资、借贷、辞职等个性化金融决策建议。',
-    '4. 养老与公积金属于未来账户积累，不得笼统称为消失。',
+    '【用户目标】',
+    TASK_GOAL,
     '',
-    `【用户输入】\n${JSON.stringify(request.input, null, 2)}`,
-    `【城市上下文】\n${JSON.stringify(request.cityContext, null, 2)}`,
-    `【确定性计算版本】\n${request.calculationVersion}`,
-    `【服务端确定性计算结果（权威）】\n${JSON.stringify(request.calculation, null, 2)}`,
-    `【确定性诊断包（只允许排序、比较和解释）】\n${JSON.stringify(diagnosticPacket, null, 2)}`,
-    `【驱动因素排名（权威，只允许解释）】\n${JSON.stringify(driverRanking, null, 2)}`,
-    `【确定性情景矩阵（权威，只允许比较）】\n${JSON.stringify(scenarioMatrix, null, 2)}`,
-    `【工资条拆解】\n${payslip}`,
-    `【日常支出详细分类】\n${detailed}`,
-    `【官方来源索引】\n${sourceIndex}`,
+    '【分析上下文 JSON】',
+    contextJson,
     '',
     '【输出任务】',
-    'A. 先校验 diagnostic-packet.reconciliation.difference 是否为 0；不是 0 时标记证据冲突并停止金额结论。',
-    'B. 按 driver-ranking 的 rank 解释前三个驱动因素，说明金额、方向和影响比例；工资条扣缴不得与到手收入重复相加。',
-    'C. 结合 cityContext 的 coverageTier 与 caveat 做基准说明，全国回退不得冒充城市原值。',
-    'D. 比较 scenario-matrix 中的基准、住房稳定、日常支出稳定、保本收入和压力情景；不得自行生成新金额。',
+    'A. 先校验 diagnostic_packet.reconciliation.difference 是否为 0；不是 0 时标记证据冲突并停止金额结论。',
+    'B. 按 driver_ranking 的 rank 解释前三个驱动因素，说明金额、方向和影响比例；工资条扣缴不得与到手收入重复相加。',
+    'C. 结合 city_context 的 coverageTier 与 caveat 做基准说明，全国回退不得冒充城市原值。',
+    'D. 比较 scenario_matrix 中的基准、住房稳定、日常支出稳定、保本收入和压力情景；不得自行生成新金额。',
     'E. 找出结论最敏感的变量，并明确引用对应情景 id；找不到证据时写“证据不足”。',
     'F. 区分用户输入、确定性计算、官方观察值和派生估算。',
-    'G. 面向普通中国城市上班族，先结论后证据，简洁、不堆宏观术语。',
-    '尽力生成 explanation.md、driver-ranking.csv、scenario-matrix.csv、share-summary.md、evidence.csv、analysis-manifest.json；不要为了生成文件联网检索。',
+    'G. 先给普通中国城市上班族结论，再给证据和边界说明。',
+    'H. 必须实际生成 explanation.md，正文控制在 1200—2200 个中文字符；不得只描述生成步骤或以行动计划代替报告。',
+    'I. driver-ranking.csv、scenario-matrix.csv、share-summary.md、evidence.csv、analysis-manifest.json 由 Real Raise 确定性 Worker 生成；不要创建、重算或覆盖这些文件。',
+    'J. explanation.md 写入完成后直接提交 completion_result，禁止再次请求规划或人工确认。',
   ].join('\n')
 }
 
@@ -612,13 +693,20 @@ export function buildShareSummaryMarkdown(request) {
   ].join('\n')
 }
 
-export function buildManifest({ requestId, vendorTaskId, request, execution }) {
+export function buildManifest({ requestId, vendorTaskId, request, execution, artifactStatus = 'verified' }) {
+  const context = buildAnalysisContext(request)
   return JSON.stringify({
     schemaVersion: 'real-raise.analysis.v2',
+    promptVersion: PROMPT_VERSION,
+    contextVersion: CONTEXT_VERSION,
+    taskGoal: TASK_GOAL,
     requestId,
     vendorTaskId,
     mode: execution.mode,
     attribution: execution.attribution,
+    inputSignature: context.provenance.input_signature,
+    sourceIds: context.source_index.map((source) => source.source_id),
+    artifactStatus,
     generatedAt: new Date().toISOString(),
     calculationAuthority: 'server-deterministic',
     calculationVersion: request.calculationVersion,

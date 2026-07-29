@@ -90,14 +90,13 @@ export class RealRaiseApiClient {
   }
 
   public async startAnalysis(
-    request: StartAnalysisRequest,
-    serverMode: 'partner' | 'judge' = 'judge'
+    request: StartAnalysisRequest
   ): Promise<StartAnalysisResponse> {
     if (this.useMock) return this.mockStartAnalysis(request)
 
     if (isServerAnalysisConfigured()) {
       try {
-        const handle = await startServerAnalysis(request, serverMode)
+        const handle = await startServerAnalysis(request)
         return {
           taskId: handle.taskId,
           status: handle.status,
@@ -111,7 +110,7 @@ export class RealRaiseApiClient {
           return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
         }
         throw new ServerAnalysisUnavailable(
-          '当前输入暂无真实任务回放，请选择预设案例、登录后生成个人报告，或进入评委模式。',
+          '当前输入暂无真实任务回放，请选择预设案例或登录后生成个人报告。',
           'REPLAY_NOT_FOUND',
           404,
           false,
@@ -126,7 +125,7 @@ export class RealRaiseApiClient {
       return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
     }
     throw new ServerAnalysisUnavailable(
-      '当前输入暂无真实任务回放，请选择预设案例、登录后生成个人报告，或进入评委模式。',
+      '当前输入暂无真实任务回放，请选择预设案例或登录后生成个人报告。',
       'REPLAY_NOT_FOUND',
       404,
       false,
@@ -282,6 +281,7 @@ export class RealRaiseApiClient {
         calculationAuthority: 'local-deterministic',
         calculationVersion: request.calculationVersion,
         attribution: 'none',
+        artifactStatus: 'deterministic-only',
       },
     }, 3600)
 

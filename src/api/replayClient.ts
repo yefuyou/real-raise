@@ -259,6 +259,7 @@ export function subscribeReplayTask(taskId: string, onEvent: (event: AgentTaskEv
           attribution: 'none',
           vendorTaskId: pack.vendorTaskId,
           cached: false,
+          artifactStatus: 'deterministic-only',
         },
         replayMeta: task.meta,
       },

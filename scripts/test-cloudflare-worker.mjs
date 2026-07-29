@@ -8,13 +8,26 @@ import worker, {
   UsageGuard,
   verifyJudgeToken,
 } from '../worker/index.mjs'
-import { sealAuthoritativeArtifacts } from '../worker/infiniSynapse.mjs'
+import {
+  INFINISYNAPSE_AGENT_MODE,
+  REAL_RAISE_AUTO_APPROVAL_SETTINGS,
+  buildAgentNewTaskPayload,
+  buildPlanToAgentRecoveryPayloads,
+  detectVendorInteraction,
+  sealAuthoritativeArtifacts,
+} from '../worker/infiniSynapse.mjs'
 import {
   InputError,
   buildCompletedProvenance,
   buildDiagnosticPacket,
   buildDriverRankingCsv,
   buildExecutionContext,
+  buildAnalysisContext,
+  buildPrompt,
+  buildManifest,
+  PROMPT_VERSION,
+  CONTEXT_VERSION,
+  TASK_GOAL,
   buildScenarioMatrix,
   buildScenarioMatrixCsv,
   calculateLivingCost,
@@ -76,6 +89,96 @@ assert.equal(scenarioMatrix.find((row) => row.id === 'break-even-income')?.nextI
 assert.match(buildDriverRankingCsv(validated), /driver_id,driver,monthly_impact/)
 assert.match(buildScenarioMatrixCsv(validated), /scenario_id,scenario,next_income/)
 console.log('PASS Worker scenario matrix and driver ranking are deterministic, versioned, and exportable')
+
+const analysisContext = buildAnalysisContext(validated)
+assert.equal(analysisContext.schema_version, CONTEXT_VERSION)
+assert.equal(analysisContext.prompt_version, PROMPT_VERSION)
+assert.equal(analysisContext.task_goal, TASK_GOAL)
+for (const key of [
+  'input_snapshot',
+  'deterministic_calculation',
+  'diagnostic_packet',
+  'driver_ranking',
+  'scenario_matrix',
+  'payslip_context',
+  'city_context',
+  'methodology_and_boundaries',
+  'source_index',
+  'provenance',
+]) {
+  assert.ok(analysisContext[key], `diagnosis.v2 上下文必须包含 ${key}`)
+}
+const prompt = buildPrompt(validated)
+assert.match(prompt, /diagnosis\.v2/)
+assert.match(prompt, /real-raise\.context\.v2/)
+assert.match(prompt, /这次涨薪真正留下了多少/)
+assert.match(prompt, /scenario_matrix/)
+assert.match(prompt, /智能体（ACT）模式/)
+assert.match(prompt, /必须实际生成 explanation\.md/)
+assert.doesNotMatch(prompt, /尽力生成/)
+assert.doesNotMatch(prompt, /INFINISYNAPSE_API_KEY|Bearer\s+/i)
+const manifest = JSON.parse(buildManifest({
+  requestId: 'request-context-1',
+  vendorTaskId: 'vendor-context-1',
+  request: validated,
+  execution: buildExecutionContext(true),
+  artifactStatus: 'stream-fallback',
+}))
+assert.equal(manifest.promptVersion, PROMPT_VERSION)
+assert.equal(manifest.contextVersion, CONTEXT_VERSION)
+assert.equal(manifest.taskGoal, TASK_GOAL)
+assert.equal(manifest.artifactStatus, 'stream-fallback')
+assert.equal(manifest.inputSignature, analysisContext.provenance.input_signature)
+assert.deepEqual(manifest.sourceIds, analysisContext.source_index.map((source) => source.source_id))
+console.log('PASS diagnosis.v2 context, prompt safety, and manifest lineage are explicit')
+
+const agentPayload = buildAgentNewTaskPayload({
+  vendorTaskId: 'vendor-agent-1',
+  connId: 'conn-agent-1',
+  text: prompt,
+})
+assert.equal(agentPayload.type, 'newTask')
+assert.equal(agentPayload.chatSettings.mode, INFINISYNAPSE_AGENT_MODE)
+assert.equal(agentPayload.chatSettings.mode, 'act')
+assert.deepEqual(agentPayload.autoApprovalSettings, REAL_RAISE_AUTO_APPROVAL_SETTINGS)
+assert.equal(agentPayload.autoApprovalSettings.enableWebSearch, false)
+assert.equal(agentPayload.autoApprovalSettings.enableBrowser, false)
+const recoveryPayloads = buildPlanToAgentRecoveryPayloads({
+  vendorTaskId: 'vendor-agent-1',
+  connId: 'conn-agent-1',
+})
+assert.deepEqual(
+  recoveryPayloads.map((payload) => payload.type),
+  ['autoApprovalSettings', 'togglePlanActMode', 'askResponse'],
+)
+assert.equal(recoveryPayloads[1].chatSettings.mode, 'act')
+assert.match(recoveryPayloads[2].text, /立即执行/)
+assert.equal(detectVendorInteraction({
+  event: 'message.add',
+  data: {
+    message: {
+      type: 'ask',
+      ask: 'plan_mode_response',
+      partial: false,
+      text: '先给出计划',
+    },
+  },
+}), 'plan_mode_response')
+assert.equal(detectVendorInteraction({
+  message: {
+    type: 'ask',
+    ask: 'plan_mode_response',
+    partial: true,
+  },
+}), null)
+assert.equal(detectVendorInteraction({
+  message: {
+    type: 'say',
+    say: 'completion_result',
+    partial: false,
+  },
+}), null)
+console.log('PASS every vendor task explicitly selects Agent ACT mode and can recover from an unexpected plan response')
 
 const detailedZeroToFourRequest = {
   ...validRequest,
@@ -157,6 +260,12 @@ assert.deepEqual(
     calculationVersion: 'living-cost.v2',
     attribution: 'partner-user-key',
     vendorTaskId: 'vendor-task-1',
+    promptVersion: PROMPT_VERSION,
+    contextVersion: CONTEXT_VERSION,
+    taskGoal: TASK_GOAL,
+    sourceIds: analysisContext.source_index.map((source) => source.source_id),
+    inputSignature: analysisContext.provenance.input_signature,
+    artifactStatus: 'verified',
   },
 )
 console.log('PASS Worker completion provenance proves user-key attribution and numeric authority')
@@ -371,12 +480,14 @@ const ssoEnv = {
   JUDGE_AUTH_RATE_LIMITER: { limit: async () => ({ success: true }) },
 }
 let capturedState = ''
+let capturedSessionBody = null
 let flowCookie = ''
 const originalFetch = globalThis.fetch
 globalThis.fetch = async (url, init = {}) => {
   if (String(url).endsWith('/auth/partner/sessions')) {
     const requestBody = JSON.parse(init.body)
     capturedState = requestBody.state
+    capturedSessionBody = requestBody
     return Response.json({
       code: 200,
       data: { entryUrl: 'https://app.infinisynapse.cn/auth/entry?session=ps_test' },
@@ -448,6 +559,68 @@ const replayedCallback = await worker.fetch(new Request(
   `https://real-raise.example/api/auth/infini/callback?code=ac_test&state=${encodeURIComponent(capturedState)}`,
 ), ssoEnv)
 assert.match(replayedCallback.headers.get('location') ?? '', /auth_error=invalid-callback/)
+
+const rejectedReturnOrigin = await worker.fetch(new Request(
+  'https://real-raise.example/api/auth/infini/start?return_origin=https%3A%2F%2Fevil.example',
+  { headers: { Origin: 'http://localhost:5173' } },
+), ssoEnv)
+assert.equal(rejectedReturnOrigin.status, 403)
+assert.equal((await rejectedReturnOrigin.json()).error.code, 'RETURN_ORIGIN_NOT_ALLOWED')
+
+const localReturnOrigin = 'http://localhost:5173'
+const localStartResponse = await worker.fetch(new Request(
+  `https://real-raise.example/api/auth/infini/start?return_origin=${encodeURIComponent(localReturnOrigin)}`,
+  { headers: { Origin: localReturnOrigin } },
+), ssoEnv)
+assert.equal(localStartResponse.status, 302)
+const localState = capturedState
+const localFlowCookie = (localStartResponse.headers.get('set-cookie') ?? '').split(';')[0]
+assert.equal(capturedSessionBody?.cancelUrl, `${localReturnOrigin}/?auth_error=cancelled`)
+assert.equal(capturedSessionBody?.metadata?.returnOrigin, localReturnOrigin)
+
+const localCallbackResponse = await worker.fetch(new Request(
+  `https://real-raise.example/api/auth/infini/callback?code=ac_local&state=${encodeURIComponent(localState)}`,
+  { headers: { Cookie: localFlowCookie } },
+), ssoEnv)
+assert.equal(localCallbackResponse.status, 302)
+const localCallbackLocation = new URL(localCallbackResponse.headers.get('location') ?? '')
+assert.equal(localCallbackLocation.origin, localReturnOrigin)
+assert.equal(localCallbackLocation.searchParams.get('auth'), 'success')
+const handoffCode = localCallbackLocation.searchParams.get('auth_handoff') ?? ''
+assert.ok(handoffCode)
+assert.doesNotMatch(localCallbackResponse.headers.get('set-cookie') ?? '', /__Host-rr_session=/)
+
+const handoffResponse = await worker.fetch(new Request('https://real-raise.example/api/auth/handoff', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Origin: localReturnOrigin,
+  },
+  body: JSON.stringify({ code: handoffCode }),
+}), ssoEnv)
+assert.equal(handoffResponse.status, 200)
+const handoffBody = await handoffResponse.json()
+assert.match(handoffBody.sessionToken, /^[A-Za-z0-9_-]+$/)
+assert.doesNotMatch(JSON.stringify(handoffBody), /partner-test-fixture-key/)
+
+const localMeResponse = await worker.fetch(new Request('https://real-raise.example/api/auth/me', {
+  headers: {
+    Origin: localReturnOrigin,
+    Authorization: `Bearer ${handoffBody.sessionToken}`,
+  },
+}), ssoEnv)
+assert.equal(localMeResponse.status, 200)
+assert.equal((await localMeResponse.json()).authenticated, true)
+
+const replayedHandoff = await worker.fetch(new Request('https://real-raise.example/api/auth/handoff', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Origin: localReturnOrigin,
+  },
+  body: JSON.stringify({ code: handoffCode }),
+}), ssoEnv)
+assert.equal(replayedHandoff.status, 401)
 
 const logoutResponse = await worker.fetch(new Request('https://real-raise.example/api/auth/logout', {
   method: 'POST',
