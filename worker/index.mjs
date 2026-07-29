@@ -1,12 +1,21 @@
-import { InputError, validateAnalysisRequest } from './core.mjs'
+import {
+  InputError,
+  buildCompletedProvenance,
+  buildExecutionContext,
+  validateAnalysisRequest,
+} from './core.mjs'
 import { UpstreamError, runInfiniSynapseAnalysis } from './infiniSynapse.mjs'
 
 const MAX_BODY_BYTES = 20_000
-const DEFAULT_TIMEOUT_MS = 180_000
+// InfiniSynapse 长任务通常会超过 3 分钟；保留 10 分钟安全上限，
+// 并允许部署环境通过 ANALYSIS_TIMEOUT_MS 做小范围调节。
+const DEFAULT_TIMEOUT_MS = 600_000
+const MAX_TIMEOUT_MS = 900_000
 const LEASE_TTL_MS = 4 * 60_000
 const DEFAULT_JUDGE_SESSION_TTL_MINUTES = 6 * 60
 const DEFAULT_SSO_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
 const DEFAULT_SSO_FLOW_TTL_SECONDS = 10 * 60
+const DEFAULT_SSO_HANDOFF_TTL_SECONDS = 2 * 60
 
 function shanghaiDate(timestamp = Date.now()) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -21,6 +30,11 @@ function positiveInteger(value, fallback, maximum) {
   const parsed = Number.parseInt(String(value ?? ''), 10)
   if (!Number.isFinite(parsed) || parsed < 0) return fallback
   return Math.min(parsed, maximum)
+}
+
+function analysisTimeoutMs(env) {
+  const configured = positiveInteger(env.ANALYSIS_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS)
+  return configured >= 60_000 ? configured : DEFAULT_TIMEOUT_MS
 }
 
 export class UsageGuard {
@@ -115,29 +129,67 @@ export class AuthSessionStore {
       ? await request.json().catch(() => ({}))
       : {}
 
-    if (request.method === 'POST' && url.pathname === '/state') {
+    if (request.method === 'POST' && url.pathname === '/flow') {
+      const flowId = typeof body.flowId === 'string' ? body.flowId : ''
       const state = typeof body.state === 'string' ? body.state : ''
+      const returnOrigin = typeof body.returnOrigin === 'string' ? body.returnOrigin : ''
       const expiresAt = Number(body.expiresAt)
-      if (!state || !Number.isFinite(expiresAt)) {
+      if (!flowId || !state || !returnOrigin || !Number.isFinite(expiresAt)) {
         return Response.json({ ok: false }, { status: 400 })
       }
-      await this.state.storage.put(`oauth-state:${state}`, { expiresAt })
+      await this.state.storage.put(`oauth-flow:${flowId}`, { state, returnOrigin, expiresAt })
       return Response.json({ ok: true })
     }
 
-    if (request.method === 'POST' && url.pathname === '/state/consume') {
+    if (request.method === 'POST' && url.pathname === '/flow/consume') {
+      const flowId = typeof body.flowId === 'string' ? body.flowId : ''
       const state = typeof body.state === 'string' ? body.state : ''
-      if (!state) return Response.json({ valid: false }, { status: 400 })
-      const key = `oauth-state:${state}`
+      if (!flowId || !state) return Response.json({ valid: false }, { status: 400 })
+      const key = `oauth-flow:${flowId}`
       const record = await this.state.storage.get(key)
       await this.state.storage.delete(key)
-      return Response.json({ valid: Boolean(record && Number(record.expiresAt) > Date.now()) })
+      const valid = Boolean(record && record.state === state && Number(record.expiresAt) > Date.now())
+      return Response.json({
+        valid,
+        returnOrigin: valid && typeof record.returnOrigin === 'string' ? record.returnOrigin : '',
+      })
     }
 
-    if (request.method === 'POST' && url.pathname === '/state/delete') {
-      const state = typeof body.state === 'string' ? body.state : ''
-      if (state) await this.state.storage.delete(`oauth-state:${state}`)
+    if (request.method === 'POST' && url.pathname === '/flow/delete') {
+      const flowId = typeof body.flowId === 'string' ? body.flowId : ''
+      if (flowId) await this.state.storage.delete(`oauth-flow:${flowId}`)
       return Response.json({ ok: true })
+    }
+
+    if (request.method === 'POST' && url.pathname === '/handoff') {
+      const code = typeof body.code === 'string' ? body.code : ''
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
+      const returnOrigin = typeof body.returnOrigin === 'string' ? body.returnOrigin : ''
+      const expiresAt = Number(body.expiresAt)
+      if (!code || !sessionId || !returnOrigin || !Number.isFinite(expiresAt)) {
+        return Response.json({ ok: false }, { status: 400 })
+      }
+      await this.state.storage.put(`auth-handoff:${code}`, { sessionId, returnOrigin, expiresAt })
+      return Response.json({ ok: true })
+    }
+
+    if (request.method === 'POST' && url.pathname === '/handoff/consume') {
+      const code = typeof body.code === 'string' ? body.code : ''
+      const returnOrigin = typeof body.returnOrigin === 'string' ? body.returnOrigin : ''
+      if (!code || !returnOrigin) return Response.json({ valid: false }, { status: 400 })
+      const key = `auth-handoff:${code}`
+      const record = await this.state.storage.get(key)
+      await this.state.storage.delete(key)
+      const valid = Boolean(
+        record
+        && record.returnOrigin === returnOrigin
+        && Number(record.expiresAt) > Date.now()
+        && typeof record.sessionId === 'string',
+      )
+      return Response.json({
+        valid,
+        sessionId: valid ? record.sessionId : '',
+      })
     }
 
     if (request.method === 'POST' && url.pathname === '/session') {
@@ -235,6 +287,21 @@ function ssoCookie(sessionId, maxAge, sameSite = 'Lax') {
     `SameSite=${sameSite}`,
     `Max-Age=${Math.max(0, Math.floor(maxAge))}`,
   ].join('; ')
+}
+
+function oauthFlowCookie(flowId, maxAge, sameSite = 'Lax') {
+  return [
+    `__Host-rr_oauth_flow=${flowId}`,
+    'Path=/',
+    'HttpOnly',
+    'Secure',
+    `SameSite=${sameSite}`,
+    `Max-Age=${Math.max(0, Math.floor(maxAge))}`,
+  ].join('; ')
+}
+
+function clearOauthFlowCookie(sameSite = 'Lax') {
+  return oauthFlowCookie('', 0, sameSite)
 }
 
 function clearSsoCookie() {
@@ -368,32 +435,57 @@ async function authStoreRequest(env, path, init = {}) {
   return stub.fetch(new Request(`https://auth-store.internal${path}`, init))
 }
 
-async function saveOauthState(env, state, expiresAt) {
-  const response = await authStoreRequest(env, '/state', {
+async function saveOauthFlow(env, flowId, state, returnOrigin, expiresAt) {
+  const response = await authStoreRequest(env, '/flow', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state, expiresAt }),
+    body: JSON.stringify({ flowId, state, returnOrigin, expiresAt }),
   })
   return Boolean(response?.ok)
 }
 
-async function consumeOauthState(env, state) {
-  const response = await authStoreRequest(env, '/state/consume', {
+async function consumeOauthFlow(env, flowId, state) {
+  const response = await authStoreRequest(env, '/flow/consume', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ flowId, state }),
   })
-  if (!response?.ok) return false
+  if (!response?.ok) return { valid: false, returnOrigin: '' }
   const body = await response.json().catch(() => ({}))
-  return body.valid === true
+  return {
+    valid: body.valid === true,
+    returnOrigin: body.valid === true && typeof body.returnOrigin === 'string'
+      ? body.returnOrigin
+      : '',
+  }
 }
 
-async function deleteOauthState(env, state) {
-  await authStoreRequest(env, '/state/delete', {
+async function deleteOauthFlow(env, flowId) {
+  await authStoreRequest(env, '/flow/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ flowId }),
   })
+}
+
+async function saveAuthHandoff(env, handoff) {
+  const response = await authStoreRequest(env, '/handoff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(handoff),
+  })
+  return Boolean(response?.ok)
+}
+
+async function consumeAuthHandoff(env, code, returnOrigin) {
+  const response = await authStoreRequest(env, '/handoff/consume', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, returnOrigin }),
+  })
+  if (!response?.ok) return ''
+  const body = await response.json().catch(() => ({}))
+  return body.valid === true && typeof body.sessionId === 'string' ? body.sessionId : ''
 }
 
 async function saveSsoSession(env, session) {
@@ -406,7 +498,9 @@ async function saveSsoSession(env, session) {
 }
 
 async function readSsoSession(request, env) {
-  const sessionId = cookieValue(request, '__Host-rr_session')
+  const authorization = request.headers.get('authorization') ?? ''
+  const bearerSession = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+  const sessionId = cookieValue(request, '__Host-rr_session') || bearerSession
   if (!sessionId) return null
   const response = await authStoreRequest(env, `/session?id=${encodeURIComponent(sessionId)}`)
   if (!response?.ok) return null
@@ -417,21 +511,50 @@ async function readSsoSession(request, env) {
 }
 
 async function deleteSsoSession(request, env) {
-  const sessionId = cookieValue(request, '__Host-rr_session')
+  const authorization = request.headers.get('authorization') ?? ''
+  const bearerSession = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
+  const sessionId = cookieValue(request, '__Host-rr_session') || bearerSession
   if (!sessionId) return
   await authStoreRequest(env, `/session?id=${encodeURIComponent(sessionId)}`, {
     method: 'DELETE',
   })
 }
 
-function safeAuthRedirect(config, reason = '', fallbackOrigin = 'https://localhost') {
-  const target = new URL('/', config.publicOrigin || fallbackOrigin)
+function safeAuthRedirect(targetOrigin, reason = '') {
+  const target = new URL('/', targetOrigin)
   if (reason === 'success') {
     target.searchParams.set('auth', 'success')
   } else if (reason) {
     target.searchParams.set('auth_error', reason)
   }
   return target.toString()
+}
+
+function trustedReturnOrigin(request, env, config) {
+  const requestUrl = new URL(request.url)
+  const requestedOrigin = requestUrl.searchParams.get('return_origin') ?? ''
+  if (!requestedOrigin) return config.publicOrigin
+  try {
+    const normalized = new URL(requestedOrigin).origin
+    if (
+      normalized !== requestedOrigin
+      || !allowedOrigins(env).has(normalized)
+      || (normalized !== config.publicOrigin && !isLoopbackOrigin(normalized))
+    ) return ''
+    return normalized
+  } catch {
+    return ''
+  }
+}
+
+function isLoopbackOrigin(origin) {
+  try {
+    const url = new URL(origin)
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]')
+  } catch {
+    return false
+  }
 }
 
 function authErrorResponse(origin, code, message, status = 503) {
@@ -473,23 +596,28 @@ async function handleSsoStart(request, env) {
   if (!ssoConfigured(env) || !authStoreStub(env)) {
     return authErrorResponse(origin, 'SSO_NOT_CONFIGURED', '登录服务尚未配置，请稍后再试。')
   }
+  const returnOrigin = trustedReturnOrigin(request, env, config)
+  if (!returnOrigin) {
+    return errorResponse(origin, 403, 'RETURN_ORIGIN_NOT_ALLOWED', '登录完成后的返回地址不在允许列表。')
+  }
 
+  const flowId = randomToken(24)
   const state = randomToken(32)
   const expiresAt = Date.now() + positiveInteger(
     env.SSO_FLOW_TTL_SECONDS,
     DEFAULT_SSO_FLOW_TTL_SECONDS,
     30 * 60,
   ) * 1000
-  if (!await saveOauthState(env, state, expiresAt)) {
+  if (!await saveOauthFlow(env, flowId, state, returnOrigin, expiresAt)) {
     return authErrorResponse(origin, 'SSO_SESSION_STORE_UNAVAILABLE', '登录服务暂时不可用，请稍后再试。')
   }
 
   try {
     const data = await infiniPartnerRequest(config, '/auth/partner/sessions', {
       returnUrl: `${config.publicOrigin}/api/auth/infini/callback`,
-      cancelUrl: safeAuthRedirect(config, 'cancelled'),
+      cancelUrl: safeAuthRedirect(returnOrigin, 'cancelled'),
       state,
-      metadata: { source: 'real-raise' },
+      metadata: { source: 'real-raise', returnOrigin },
     })
     if (typeof data.entryUrl !== 'string' || !data.entryUrl.startsWith('https://')) {
       throw new Error('Missing entryUrl')
@@ -498,11 +626,12 @@ async function handleSsoStart(request, env) {
       status: 302,
       headers: {
         Location: data.entryUrl,
+        'Set-Cookie': oauthFlowCookie(flowId, Math.ceil((expiresAt - Date.now()) / 1000), ssoCookieSameSite(config)),
         'Cache-Control': 'no-store',
       },
     })
   } catch {
-    await deleteOauthState(env, state)
+    await deleteOauthFlow(env, flowId)
     return authErrorResponse(origin, 'SSO_PROVIDER_UNAVAILABLE', 'InfiniSynapse 登录暂时不可用，请稍后再试。', 502)
   }
 }
@@ -511,14 +640,30 @@ async function handleSsoCallback(request, env) {
   const config = ssoConfig(env)
   const requestOrigin = new URL(request.url).origin
   if (!ssoConfigured(env) || !authStoreStub(env)) {
-    return new Response(null, { status: 302, headers: { Location: safeAuthRedirect(config, 'not-configured', requestOrigin) } })
+    return new Response(null, {
+      status: 302,
+      headers: { Location: safeAuthRedirect(config.publicOrigin || requestOrigin, 'not-configured') },
+    })
   }
   const url = new URL(request.url)
   const code = url.searchParams.get('code') ?? ''
   const state = url.searchParams.get('state') ?? ''
-  if (!code || !state || !(await consumeOauthState(env, state))) {
-    return new Response(null, { status: 302, headers: { Location: safeAuthRedirect(config, 'invalid-callback', requestOrigin) } })
+  const flowId = cookieValue(request, '__Host-rr_oauth_flow')
+  const redirectHeaders = (reason, returnOrigin = config.publicOrigin || requestOrigin) => {
+    const headers = new Headers({
+      Location: safeAuthRedirect(returnOrigin, reason),
+      'Cache-Control': 'no-store',
+    })
+    headers.append('Set-Cookie', clearOauthFlowCookie(ssoCookieSameSite(config)))
+    return headers
   }
+  const flow = code && state && flowId
+    ? await consumeOauthFlow(env, flowId, state)
+    : { valid: false, returnOrigin: '' }
+  if (!flow.valid || !allowedOrigins(env).has(flow.returnOrigin)) {
+    return new Response(null, { status: 302, headers: redirectHeaders('invalid-callback') })
+  }
+  const returnOrigin = flow.returnOrigin
 
   try {
     const data = await infiniPartnerRequest(config, '/auth/partner/token', {
@@ -547,17 +692,50 @@ async function handleSsoCallback(request, env) {
       expiresAt: Date.now() + ttlSeconds * 1000,
     })
     if (!stored) throw new Error('Session store unavailable')
+    if (returnOrigin !== config.publicOrigin) {
+      if (!isLoopbackOrigin(returnOrigin)) throw new Error('Invalid cross-origin handoff target')
+      const handoffCode = randomToken(32)
+      const handoffStored = await saveAuthHandoff(env, {
+        code: handoffCode,
+        sessionId,
+        returnOrigin,
+        expiresAt: Date.now() + DEFAULT_SSO_HANDOFF_TTL_SECONDS * 1000,
+      })
+      if (!handoffStored) throw new Error('Handoff store unavailable')
+      const location = new URL(safeAuthRedirect(returnOrigin, 'success'))
+      location.searchParams.set('auth_handoff', handoffCode)
+      const headers = redirectHeaders('success', returnOrigin)
+      headers.set('Location', location.toString())
+      return new Response(null, { status: 302, headers })
+    }
     return new Response(null, {
       status: 302,
-      headers: {
-        Location: safeAuthRedirect(config, 'success', requestOrigin),
-        'Set-Cookie': ssoCookie(sessionId, ttlSeconds, ssoCookieSameSite(config)),
-        'Cache-Control': 'no-store',
-      },
+      headers: (() => {
+        const headers = redirectHeaders('success', returnOrigin)
+        headers.append('Set-Cookie', ssoCookie(sessionId, ttlSeconds, ssoCookieSameSite(config)))
+        return headers
+      })(),
     })
   } catch {
-    return new Response(null, { status: 302, headers: { Location: safeAuthRedirect(config, 'failed', requestOrigin) } })
+    return new Response(null, { status: 302, headers: redirectHeaders('failed', returnOrigin) })
   }
+}
+
+async function handleSsoHandoff(request, env) {
+  const origin = request.headers.get('origin') ?? ''
+  if (!origin || !allowedOrigins(env).has(origin) || !isLoopbackOrigin(origin)) {
+    return errorResponse('', 403, 'ORIGIN_NOT_ALLOWED', '本地登录交接来源不在允许列表。')
+  }
+  const body = await request.json().catch(() => ({}))
+  const code = typeof body.code === 'string' ? body.code.trim() : ''
+  if (!code) return errorResponse(origin, 422, 'INVALID_AUTH_HANDOFF', '本地登录交接码无效。')
+  const sessionToken = await consumeAuthHandoff(env, code, origin)
+  if (!sessionToken) {
+    return errorResponse(origin, 401, 'AUTH_HANDOFF_EXPIRED', '本地登录交接已过期或已使用，请重新登录。')
+  }
+  return Response.json({ sessionToken }, {
+    headers: { ...corsHeaders(origin), 'Cache-Control': 'no-store' },
+  })
 }
 
 async function handleSsoMe(request, env) {
@@ -610,6 +788,18 @@ export function resolveAnalysisMode({ requestedMode, judgeHeader, hasPartnerSess
   if (judgeHeader === 'true') return { mode: 'judge', code: null }
   if (hasPartnerSession) return { mode: 'partner', code: null }
   return { mode: 'judge', code: null }
+}
+
+export async function validateJudgeAuthorization(request, env, now = Date.now()) {
+  if (!env.JUDGE_TOKEN_SECRET) {
+    return { ok: false, code: 'JUDGE_AUTH_NOT_CONFIGURED' }
+  }
+  const token = bearerToken(request)
+  if (!token) return { ok: false, code: 'JUDGE_TOKEN_REQUIRED' }
+  const valid = await verifyJudgeToken(token, env.JUDGE_TOKEN_SECRET, now)
+  return valid
+    ? { ok: true, code: null }
+    : { ok: false, code: 'JUDGE_TOKEN_INVALID' }
 }
 
 async function handleJudgeSession(request, env) {
@@ -740,9 +930,14 @@ async function handleAnalysis(request, env) {
     return errorResponse(origin, 503, 'SERVER_NOT_CONFIGURED', '实时分析服务尚未配置。', true)
   }
   // Judge mode is explicitly independent from Partner SSO. A logged-in user
-  // still uses the project judge key when the caller asks for judge mode.
-  if (!usingPartnerKey && request.headers.get('X-Real-Raise-Judge') !== 'true') {
-    return errorResponse(origin, 403, 'JUDGE_MODE_REQUIRED', '请先进入评委模式。')
+  // still uses the project judge key when the caller asks for judge mode, but
+  // the signed session is the only credential that can unlock that key.
+  if (!usingPartnerKey) {
+    const judgeAuth = await validateJudgeAuthorization(request, env)
+    if (!judgeAuth.ok) {
+      const status = judgeAuth.code === 'JUDGE_AUTH_NOT_CONFIGURED' ? 503 : 401
+      return errorResponse(origin, status, judgeAuth.code, '请先输入有效的评委口令。')
+    }
   }
 
   let analysisRequest
@@ -797,23 +992,33 @@ async function handleAnalysis(request, env) {
 
       void (async () => {
         let outcome = 'failed'
+        const execution = buildExecutionContext(usingPartnerKey)
+        let completedVendorTaskId = null
         try {
           const result = await runInfiniSynapseAnalysis({
             requestId,
             request: analysisRequest,
+            execution,
             apiKey: usingPartnerKey ? ssoSession.apiKey : env.INFINISYNAPSE_API_KEY,
             baseUrl: env.INFINISYNAPSE_API_BASE_URL || 'https://app.infinisynapse.cn',
-            timeoutMs: DEFAULT_TIMEOUT_MS,
+            timeoutMs: analysisTimeoutMs(env),
             onEvent: send,
             clientSignal: abortController.signal,
           })
           outcome = 'completed'
+          completedVendorTaskId = result.vendorTaskId
           send({
             type: 'completed',
             taskId: requestId,
             insight: result.insight,
             sources: result.sources,
             artifacts: result.artifacts,
+            provenance: buildCompletedProvenance({
+              execution,
+              request: analysisRequest,
+              vendorTaskId: result.vendorTaskId,
+              artifactStatus: result.artifactStatus,
+            }),
           })
         } catch (error) {
           const known = error instanceof UpstreamError
@@ -830,6 +1035,11 @@ async function handleAnalysis(request, env) {
             requestId,
             outcome,
             durationMs: Date.now() - startedAt,
+            analysisMode: execution.mode,
+            attribution: execution.attribution,
+            vendorTaskId: completedVendorTaskId,
+            calculationVersion: analysisRequest.calculationVersion,
+            cityCode: analysisRequest.cityContext.cityCode,
           }))
           if (!streamClosed) {
             streamClosed = true
@@ -873,6 +1083,7 @@ export default {
       || url.pathname === '/api/judge/session'
       || url.pathname === '/api/auth/infini/start'
       || url.pathname === '/api/auth/infini/callback'
+      || url.pathname === '/api/auth/handoff'
       || url.pathname === '/api/auth/me'
       || url.pathname === '/api/auth/logout'
     )) {
@@ -887,6 +1098,9 @@ export default {
     }
     if (request.method === 'GET' && url.pathname === '/api/auth/infini/callback') {
       return handleSsoCallback(request, env)
+    }
+    if (request.method === 'POST' && url.pathname === '/api/auth/handoff') {
+      return handleSsoHandoff(request, env)
     }
     if (request.method === 'GET' && url.pathname === '/api/auth/me') {
       return handleSsoMe(request, env)

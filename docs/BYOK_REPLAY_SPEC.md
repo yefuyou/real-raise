@@ -1,4 +1,9 @@
-# BYOK + 三态模式实施 Spec（交给 Claude Code 端执行）
+# BYOK + 回放模式历史归档（不再作为产品入口）
+
+> 2026-07-29：BYOK、自带 Key、模型选择和开发者折叠入口已从产品中退役，
+> 不得重新接回 UI。当前用户只看到两条路径：未登录真实回放、登录后 Partner
+> 实时模式。本文件仅保留迁移背景和 Replay v2 兼容记录；Worker 的历史评委接口
+> 不属于产品入口。
 
 日期：2026-07-26 ｜ 配合其"纯静态 + BYOK + EdgeOne"部署方案，补齐它漏掉的四个点。
 
@@ -7,7 +12,7 @@
 - **先拉最新代码**：今晚云端会话已写回 16 个文件（工资条模式并入 `App.tsx`/`apiClient.ts`/`styles.css`；服务端新增缓存/降级/静态托管）。基于旧代码改会互相踩掉。
 - **别删 Node 后端**：cpolar 备用链路和本地开发试跑都靠它；保留 `render.yaml` 无害。
 
-## 1. 三态模式定义（核心需求）
+## 1. 历史三态模式定义（已废弃）
 
 | 模式 | 触发条件 | 数据来源 | 额度消耗 |
 | --- | --- | --- | --- |
@@ -28,15 +33,39 @@
 
 ## 3. 回放模式实现
 
-**数据格式**：`public/replays/{scenarioId}.json`
+**数据格式**：`public/replays/{scenarioId}.json`。历史包已升级为
+`replay.v2`；完整来源与迁移规则见 [REPLAY_PROVENANCE.md](./REPLAY_PROVENANCE.md)。
 
 ```json
 {
-  "schemaVersion": "replay.v1",
+  "schemaVersion": "replay.v2",
   "scenarioId": "take-home-raise-shrinks",
   "vendorTaskId": "<真实任务ID>",
   "recordedAt": "2026-07-2x",
-  "request": { "input": {}, "calculation": {}, "inputMode": "basic" },
+  "request": {
+    "input": {},
+    "calculation": {},
+    "calculationVersion": "living-cost.v2",
+    "cityContext": {},
+    "inputMode": "basic"
+  },
+  "recordedRequest": {
+    "input": {},
+    "calculation": {},
+    "inputMode": "basic"
+  },
+  "provenance": {
+    "vendorArtifacts": {
+      "origin": "infinisynapse-task-workspace",
+      "integrity": "vendor-original-unaltered",
+      "sha256": {}
+    },
+    "compatibility": {
+      "status": "legacy-calculation",
+      "recordedContextStatus": "not-recorded",
+      "currentContextUsage": "matching-only"
+    }
+  },
   "events": [ { "type": "started" }, { "type": "progress", "stage": "…", "message": "…", "percent": 10 } ],
   "completed": { "insight": "…", "sources": [], "workspace": { "artifacts": [], "previews": {} } }
 }
@@ -44,16 +73,21 @@
 
 - **录制**：演示账号真实跑一次，把收到的归一化事件流与 completed 载荷序列化落盘。做法任选：dev-only"导出回放"按钮（最简单，前端把事件数组 JSON.stringify 下载），或 node 脚本走后端跑。
 - **播放**：`apiClient` 增加 replay 分支，按事件序列定时回放（间隔可压缩至 2 倍速），completed 后产物照常可预览/下载。
-- **UI 标注**（必须）：`真实任务存档回放 · 任务 ID {vendorTaskId} · 录制于 {recordedAt} · 评委可在平台任务后台核验`。
+- **UI 标注**（必须）：旧任务显示
+  `历史真实任务存档（旧口径） · 任务 ID {vendorTaskId} · 录制于 {recordedAt}`，
+  同时明确原报告数值、当前页面数值以及历史任务没有城市上下文。
 - 4 条回放：3 个预设案例 + 1 个工资条示例案例。录制时同步录屏（视频素材两用），并把 4 个任务 ID 汇总进提交材料。
 
-## 4. Key 输入与评委指引 UI
+## 4. 历史 Key 输入 UI（已删除）
 
-InsightSection 顶部增加折叠区：
+旧版本曾在 InsightSection 增加折叠区；该入口现已删除，不得恢复：
 
 - Key 输入框 + 保存/清除；无 Key 时显示指引文案：
 
-> **评委/访客指引**：本应用为纯静态站，无自有服务器。① 不填 Key：可查看真实 InfiniSynapse 任务的存档回放（任务 ID 可在平台后台核验）；② 填入你的平台 API Key：实时重跑完整链路，Key 仅保存在你的浏览器本地。新用户注册平台即赠积分，足够体验。
+> 这段是旧版本文案，仅用于说明迁移前状态；当前页面不显示 Key 输入、评委入口或 BYOK 指引。
+
+当前替代文案：未登录查看真实任务回放；登录后使用 Partner 账号生成实时报告。
+页面不提供 API Key 输入、评委模式、模型选择或 Mock 模式入口。
 
 ## 5. prompt 条件话术（加到 makePrompt 移植版）
 

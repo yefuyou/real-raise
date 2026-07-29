@@ -1,33 +1,81 @@
 {
-  "schemaVersion": "replay-manifest.v1",
+  "schemaVersion": "replay-manifest.v2",
   "replays": [
     {
       "scenarioId": "comfortable-raise",
       "file": "comfortable-raise.json",
-      "signature": "0ec7fd174afe9fc0",
+      "replaySchemaVersion": "replay.v2",
+      "signature": "ea5aeba7c597514a",
       "vendorTaskId": "90c66681-eba2-4feb-816d-90ec416a2122",
-      "recordedAt": "2026-07-26T13:38:45.226Z"
+      "recordedAt": "2026-07-26T13:38:45.226Z",
+      "provenanceStatus": "vendor-original-unaltered",
+      "compatibility": {
+        "status": "legacy-calculation",
+        "recordedCalculationVersion": "income-growth/cost-growth-ratio.v1",
+        "currentCalculationVersion": "remainder-change/current-income.v2",
+        "recordedContextStatus": "not-recorded",
+        "currentContextUsage": "matching-only",
+        "recordedValue": 0.1555953122790137,
+        "currentValue": 0.16737776272118465,
+        "userNotice": "此任务录制于旧版“收入增速与总支出增速之比”口径，且录制时没有城市上下文字段；供应商原始报告和三份工作区产物保持原样，仅用于核验历史任务。当前页面采用“月结余变化÷当前收入”和合肥 2026H1 匹配上下文，两者不可直接混用。"
+      }
     },
     {
       "scenarioId": "payslip-raise-and-fixed-costs",
       "file": "payslip-raise-and-fixed-costs.json",
-      "signature": "1cd9f8a35011d83e",
+      "replaySchemaVersion": "replay.v2",
+      "signature": "ccf5c0933deadae4",
       "vendorTaskId": "2a735498-f2ec-448f-b839-639ddce26c4f",
-      "recordedAt": "2026-07-26T14:29:44.118Z"
+      "recordedAt": "2026-07-26T14:29:44.118Z",
+      "provenanceStatus": "vendor-original-unaltered",
+      "compatibility": {
+        "status": "legacy-calculation",
+        "recordedCalculationVersion": "income-growth/cost-growth-ratio.v1",
+        "currentCalculationVersion": "remainder-change/current-income.v2",
+        "recordedContextStatus": "not-recorded",
+        "currentContextUsage": "matching-only",
+        "recordedValue": -0.1289145087457093,
+        "currentValue": -0.12289979447635113,
+        "userNotice": "此任务录制于旧版“收入增速与总支出增速之比”口径，且录制时没有城市上下文字段；供应商原始报告和三份工作区产物保持原样，仅用于核验历史任务。当前页面采用“月结余变化÷当前收入”和合肥 2026H1 匹配上下文，两者不可直接混用。"
+      }
     },
     {
       "scenarioId": "raise-and-fixed-costs",
       "file": "raise-and-fixed-costs.json",
-      "signature": "e2f1214dc22dea8c",
+      "replaySchemaVersion": "replay.v2",
+      "signature": "1a6e4ec32fb83394",
       "vendorTaskId": "a2083df0-0792-4b1e-8d04-03d8cc0d5028",
-      "recordedAt": "2026-07-26T13:13:56.632Z"
+      "recordedAt": "2026-07-26T13:13:56.632Z",
+      "provenanceStatus": "vendor-original-unaltered",
+      "compatibility": {
+        "status": "legacy-calculation",
+        "recordedCalculationVersion": "income-growth/cost-growth-ratio.v1",
+        "currentCalculationVersion": "remainder-change/current-income.v2",
+        "recordedContextStatus": "not-recorded",
+        "currentContextUsage": "matching-only",
+        "recordedValue": 0.04880535325076463,
+        "currentValue": 0.14161669224909335,
+        "userNotice": "此任务录制于旧版“收入增速与总支出增速之比”口径，且录制时没有城市上下文字段；供应商原始报告和三份工作区产物保持原样，仅用于核验历史任务。当前页面采用“月结余变化÷当前收入”和合肥 2026H1 匹配上下文，两者不可直接混用。"
+      }
     },
     {
       "scenarioId": "take-home-raise-shrinks",
       "file": "take-home-raise-shrinks.json",
-      "signature": "2c2d3aa514d76680",
+      "replaySchemaVersion": "replay.v2",
+      "signature": "d3f5abf5041a135a",
       "vendorTaskId": "6147a8d1-4bb9-416c-a664-ae54092fcc26",
-      "recordedAt": "2026-07-26T13:00:35.610Z"
+      "recordedAt": "2026-07-26T13:00:35.610Z",
+      "provenanceStatus": "vendor-original-unaltered",
+      "compatibility": {
+        "status": "legacy-calculation",
+        "recordedCalculationVersion": "income-growth/cost-growth-ratio.v1",
+        "currentCalculationVersion": "remainder-change/current-income.v2",
+        "recordedContextStatus": "not-recorded",
+        "currentContextUsage": "matching-only",
+        "recordedValue": -0.032011825537381466,
+        "currentValue": -0.006129646881975987,
+        "userNotice": "此任务录制于旧版“收入增速与总支出增速之比”口径，且录制时没有城市上下文字段；供应商原始报告和三份工作区产物保持原样，仅用于核验历史任务。当前页面采用“月结余变化÷当前收入”和合肥 2026H1 匹配上下文，两者不可直接混用。"
+      }
     }
   ]
 }

@@ -1,4 +1,17 @@
-import type { AgentTaskEvent, SourceReference, StartAnalysisRequest } from './realRaiseContract'
+import {
+  buildAnalysisManifest,
+  buildDriverRankingCsv,
+  buildEvidenceCsv,
+  buildScenarioMatrixCsv,
+  buildScenarioMatrixJson,
+  buildShareSummaryMarkdown,
+} from './analysisArtifacts'
+import type {
+  AgentTaskEvent,
+  ReplayMeta,
+  SourceReference,
+  StartAnalysisRequest,
+} from './realRaiseContract'
 import { requestSignature } from './requestSignature'
 
 /**
@@ -15,18 +28,15 @@ const REPLAY_BASE = 'replays/'
 const SPEED_DIVISOR = 2
 const MAX_STEP_MS = 2500
 
-export type ReplayMeta = {
-  scenarioId: string
-  vendorTaskId: string
-  recordedAt: string
-}
-
 type ManifestEntry = {
   scenarioId: string
   file: string
+  replaySchemaVersion?: string
   signature: string
   vendorTaskId?: string
   recordedAt?: string
+  provenanceStatus?: string
+  compatibility?: ReplayMeta['compatibility']
 }
 
 type ReplayPack = {
@@ -36,12 +46,41 @@ type ReplayPack = {
   recordedAt: string
   signature: string
   request: StartAnalysisRequest
+  recordedRequest: Omit<StartAnalysisRequest, 'calculationVersion' | 'cityContext'>
+  provenance: {
+    vendorArtifacts: {
+      origin: 'infinisynapse-task-workspace'
+      integrity: 'vendor-original-unaltered'
+      vendorTaskId: string
+    }
+    compatibility: NonNullable<ReplayMeta['compatibility']> & {
+      migrationId: string
+      changedFields: string[]
+    }
+  }
   events: Array<{ atMs: number; event: AgentTaskEvent }>
   completed: {
     insight: string
     sources: SourceReference[]
     workspace?: { artifacts?: string[]; previews?: Record<string, string> }
   }
+}
+
+function hasAuditedProvenance(pack: ReplayPack, entry: ManifestEntry): boolean {
+  return (
+    pack.schemaVersion === 'replay.v2' &&
+    entry.replaySchemaVersion === 'replay.v2' &&
+    pack.signature === entry.signature &&
+    pack.vendorTaskId === entry.vendorTaskId &&
+    pack.provenance?.vendorArtifacts?.origin === 'infinisynapse-task-workspace' &&
+    pack.provenance.vendorArtifacts.integrity === 'vendor-original-unaltered' &&
+    pack.provenance.vendorArtifacts.vendorTaskId === pack.vendorTaskId &&
+    pack.provenance?.compatibility?.status === 'legacy-calculation' &&
+    pack.provenance.compatibility.recordedContextStatus === 'not-recorded' &&
+    pack.provenance.compatibility.currentContextUsage === 'matching-only' &&
+    entry.provenanceStatus === 'vendor-original-unaltered' &&
+    entry.compatibility?.status === 'legacy-calculation'
+  )
 }
 
 type ReplayTask = {
@@ -56,6 +95,43 @@ type ReplayTask = {
 const replayTasks = new Map<string, ReplayTask>()
 
 let manifestPromise: Promise<ManifestEntry[]> | null = null
+
+/**
+ * 历史供应商证据与当前权威凭证必须使用不同文件名。
+ * explanation.md 保持供应商原文；当前 evidence/manifest 由 v2 确定性请求生成。
+ */
+export function buildReplayArtifacts(options: {
+  taskId: string
+  vendorTaskId: string
+  request: StartAnalysisRequest
+  sources: SourceReference[]
+  vendorPreviews: Record<string, string>
+}): Map<string, string> {
+  const artifacts = new Map<string, string>()
+  for (const [name, content] of Object.entries(options.vendorPreviews)) {
+    if (typeof content !== 'string') continue
+    if (name === 'evidence.csv') {
+      artifacts.set('vendor-original-evidence.csv', content)
+    } else if (name === 'analysis-manifest.json') {
+      artifacts.set('vendor-original-analysis-manifest.json', content)
+    } else {
+      artifacts.set(name, content)
+    }
+  }
+  artifacts.set('evidence.csv', buildEvidenceCsv(options.request, options.sources))
+  artifacts.set('driver-ranking.csv', buildDriverRankingCsv(options.request))
+  artifacts.set('scenario-matrix.csv', buildScenarioMatrixCsv(options.request))
+  artifacts.set('scenario-matrix.json', buildScenarioMatrixJson(options.request))
+  artifacts.set('share-summary.md', buildShareSummaryMarkdown(options.request))
+  artifacts.set('analysis-manifest.json', buildAnalysisManifest({
+    taskId: options.taskId,
+    vendorTaskId: options.vendorTaskId,
+    request: options.request,
+    sources: options.sources,
+    mode: 'replay',
+  }))
+  return artifacts
+}
 
 /** manifest 不存在（未放置任何回放包）时静默返回空表，回退演示模式。 */
 function loadManifest(): Promise<ManifestEntry[]> {
@@ -127,15 +203,31 @@ export function subscribeReplayTask(taskId: string, onEvent: (event: AgentTaskEv
       return
     }
     if (task.cancelled) return
+    if (!hasAuditedProvenance(pack, task.entry)) {
+      onEvent({
+        type: 'failed',
+        taskId,
+        code: 'REPLAY_INTEGRITY_ERROR',
+        message: '回放存档缺少可审计的来源或口径声明，已停止播放，避免把历史产物误当作当前结果。',
+        retryable: false,
+      })
+      return
+    }
 
     task.meta = {
       scenarioId: pack.scenarioId,
       vendorTaskId: pack.vendorTaskId,
       recordedAt: pack.recordedAt,
+      artifactIntegrity: pack.provenance.vendorArtifacts.integrity,
+      compatibility: pack.provenance.compatibility,
     }
-    for (const [name, content] of Object.entries(pack.completed.workspace?.previews ?? {})) {
-      if (typeof content === 'string') task.artifacts.set(name, content)
-    }
+    task.artifacts = buildReplayArtifacts({
+      taskId,
+      vendorTaskId: pack.vendorTaskId,
+      request: pack.request,
+      sources: pack.completed.sources ?? [],
+      vendorPreviews: pack.completed.workspace?.previews ?? {},
+    })
 
     // 事件按录制偏移 2 倍速回放；taskId 统一改写成本次回放的 id。
     let clockMs = 0
@@ -158,6 +250,17 @@ export function subscribeReplayTask(taskId: string, onEvent: (event: AgentTaskEv
         taskId,
         insight: pack.completed.insight,
         sources: pack.completed.sources ?? [],
+        provenance: {
+          mode: 'replay',
+          narrativeSource: 'infinisynapse-replay',
+          structuredInsightSource: 'real-raise-deterministic',
+          calculationAuthority: 'local-deterministic',
+          calculationVersion: 'living-cost.v2',
+          attribution: 'none',
+          vendorTaskId: pack.vendorTaskId,
+          cached: false,
+          artifactStatus: 'deterministic-only',
+        },
         replayMeta: task.meta,
       },
       lastAtMs + 800,

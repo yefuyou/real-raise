@@ -9,11 +9,24 @@ interface PartnerSsoPanelProps {
 export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = '' }) => {
   const [authState, setAuthState] = useState<AuthState>(() => authClient.getState())
   const [avatarError, setAvatarError] = useState(false)
+  const [authAttempted, setAuthAttempted] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      return Boolean(params.get('auth_error') || params.get('error'))
+        || sessionStorage.getItem('real_raise_auth_attempt') === '1'
+    } catch {
+      return false
+    }
+  })
 
   useEffect(() => {
     const unsubscribe = authClient.subscribe((state) => {
       setAuthState(state)
       setAvatarError(false)
+      if (state.authenticated) {
+        setAuthAttempted(false)
+        try { sessionStorage.removeItem('real_raise_auth_attempt') } catch { /* private mode */ }
+      }
     })
     void authClient.checkAuth()
     return unsubscribe
@@ -24,6 +37,12 @@ export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = ''
   const displayName = user?.nickname || user?.name || 'Infini 用户'
   const initialLetter = displayName.trim().charAt(0).toUpperCase() || 'U'
   const avatarUrl = user?.avatarUrl || user?.avatar
+
+  const handleLogin = () => {
+    setAuthAttempted(true)
+    try { sessionStorage.setItem('real_raise_auth_attempt', '1') } catch { /* private mode */ }
+    authClient.login()
+  }
 
   return (
     <div className={`partner-sso-panel ${className}`}>
@@ -75,26 +94,26 @@ export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = ''
           </div>
 
           <p className="sso-description">
-            使用您自己的 InfiniSynapse 平台积分生成定制 AI 深度解读，密钥由服务端安全保管，浏览器端永远不暴露 Partner API Key。
+            使用您自己的 InfiniSynapse 平台积分生成定制 AI 深度解读，供应商凭证由服务端安全处理，浏览器不会接触。
           </p>
 
           <div className="sso-action-row">
             <button
               type="button"
               className="btn-sso-login"
-              onClick={() => authClient.login()}
+              onClick={handleLogin}
             >
               <LogIn size={15} /> 使用 InfiniSynapse 登录并生成深度报告
             </button>
           </div>
 
           <p className="sso-footer-hint">
-            <ShieldCheck size={12} /> 未登录状态下仍可继续使用本地确定性算表、存档回放与 Mock 演示。
+            <ShieldCheck size={12} /> 未登录时查看真实任务存档；登录后使用你的账号生成实时报告。
           </p>
         </div>
       )}
 
-      {(error || errorCode) && (
+      {authAttempted && (error || errorCode) && (
         <div className="sso-error-banner" role="alert">
           <span>{formatFriendlyAuthErrorMessage(errorCode, error)}</span>
         </div>

@@ -80,47 +80,10 @@ export type InfiniSynapseTaskResult = {
 }
 
 /**
- * The prompt deliberately describes the boundary instead of asking the model
- * to act as the calculator. Local arithmetic is authoritative; the vendor
- * explains and cites it using enabled official data sources.
+ * Prompt construction intentionally lives in worker/core.mjs now. This
+ * server-only contract module keeps the vendor route/types, but no longer
+ * carries a second prompt implementation that could drift from production.
  */
-export function buildInfiniSynapsePrompt(request: InfiniSynapseTaskRequest): string {
-  const calculationJson = JSON.stringify(request.calculationSummary, null, 2)
-  const breakdownJson = request.detailedBreakdown
-    ? JSON.stringify(request.detailedBreakdown, null, 2)
-    : '未开启详细分类模式。'
-  const sources = request.sourceRefs
-    .map((source) => `- ${source.name}｜${source.year ?? '年份未标注'}｜${source.scope}｜${source.url}`)
-    .join('\n')
-
-  return [
-    '你是“你的涨薪，消失在到手之前了吗？”的解释型分析 Agent。',
-    '请基于已启用的官方数据源，解释本地程序已经计算好的结果。',
-    '',
-    '【不可违反的边界】',
-    '1. 不要重新计算、四舍五入、覆盖或纠正本地程序提供的任何数字。',
-    '2. 用户输入的工资条扣缴、到手收入、住房和其他实际支出优先于任何宏观平均。',
-    '3. 城市 CPI 只能解释价格背景；城市缺失时必须明确说“已回退全国基准”。',
-    '4. 不要把城市历史值标成当前期，不要用省级值替代城市值，不要编造缺失数据。',
-    '5. 不提供投资、借贷、辞职或其他个性化金融决策建议。',
-    '6. 每个统计结论都标注来源年份、统计范围；不确定时写明不确定。',
-    '',
-    `【用户问题】\n${request.userInput}`,
-    `【城市】\n${request.cityName}（${request.cityCode}），请求期间：${request.cityPeriod}`,
-    `【本地计算版本】\n${request.calculationVersion}`,
-    `【本地计算结果（权威，不得改写）】\n${calculationJson}`,
-    `【详细分类输入】\n${breakdownJson}`,
-    `【允许引用的来源】\n${sources || '仅使用任务中已启用且可追溯的官方来源。'}`,
-    '',
-    '【输出任务】',
-    'A. 用 3—5 句话解释收入、扣缴、日常分类支出和可支配结余的贡献。',
-    'B. 区分用户实际输入、确定性计算、官方观察值和派生估算。',
-    'C. 输出城市覆盖状态：城市原值、历史样本、全国回退三者不得混称。',
-    'D. 生成最多 3 个不改变本地数字的情景解释。',
-    'E. 生成可追溯的 explanation.md、evidence.csv 和 analysis-manifest.json；不要把二进制文件当 JSON 返回。',
-    'F. 最终文字简洁、面向普通中国城市上班族，不堆宏观术语。',
-  ].join('\n')
-}
 
 function readText(data: unknown): string {
   if (typeof data === 'string') return data.trim()

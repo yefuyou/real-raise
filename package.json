@@ -11,11 +11,13 @@
     "worker:check": "wrangler deploy --dry-run",
     "worker:test": "node scripts/test-cloudflare-worker.mjs",
     "worker:deploy": "wrangler deploy",
+    "replays:migrate": "node scripts/migrateReplayV1ToV2.mjs && node scripts/buildReplayManifest.mjs",
+    "replays:check": "node scripts/checkReplays.mjs",
     "replays:manifest": "node scripts/buildReplayManifest.mjs",
     "build": "node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.app.json --pretty false && node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.node.json --pretty false && vite build",
     "preview": "vite preview",
     "test": "node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.app.json --pretty false && node ./node_modules/typescript/lib/tsc.js src/tests/runTests.ts --outDir ./dist-test --target es2020 --module commonjs --moduleResolution node && node -e \"fs.writeFileSync('./dist-test/package.json', JSON.stringify({type:'commonjs'}))\" && node ./dist-test/tests/runTests.js",
-    "verify": "node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.app.json --pretty false && node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.node.json --pretty false"
+    "verify": "node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.app.json --pretty false && node ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.node.json --pretty false && npm run replays:check"
   },
   "dependencies": {
     "@vitejs/plugin-react": "4.6.0",

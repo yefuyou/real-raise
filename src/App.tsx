@@ -34,11 +34,13 @@ import {
   type PayslipInput,
 } from './domain/salarySlip'
 import {
+  CALCULATION_VERSION,
   DEFAULT_CATEGORY_CPI_RATES,
   type CategoryKey,
   type DetailedSpendBreakdown,
   type SourceReference,
 } from './api/realRaiseContract'
+import { buildAnalysisCityContext } from './api/analysisContext'
 import { isServerAnalysisConfigured } from './api/serverAnalysisClient'
 
 const initialInput = DEMO_SCENARIOS[0].input
@@ -114,6 +116,10 @@ function App() {
     ),
     [effectiveCalculationInput, inputMode, detailedSumNext],
   )
+  const cityContext = useMemo(
+    () => buildAnalysisCityContext(selectedCityCode),
+    [selectedCityCode],
+  )
   const payslipSummary = useMemo(() => computePayslip(payslip), [payslip])
   /** 切到工资条模式但两期税前都还是 0：此时所有派生数字都没有意义。 */
   const isPayslipUnfilled = incomeInputMode === 'payslip'
@@ -121,10 +127,37 @@ function App() {
     && payslip.next.gross === 0
   const isPayslipInvalid = incomeInputMode === 'payslip'
     && (payslip.current.gross <= 0 || payslip.next.gross <= 0 || payslipSummary.hasNegativeNet)
+  const amountValues = [
+    effectiveCalculationInput.currentIncome,
+    effectiveCalculationInput.nextIncome,
+    effectiveCalculationInput.currentRent,
+    effectiveCalculationInput.nextRent,
+    effectiveCalculationInput.otherSpend,
+  ]
+  const hasInvalidAmount = amountValues.some(
+    (value) => !Number.isFinite(value) || value < 0 || value > 1_000_000,
+  )
+  const hasInvalidInflationRate = !Number.isFinite(effectiveCalculationInput.otherInflationRate)
+    || effectiveCalculationInput.otherInflationRate < -1
+    || effectiveCalculationInput.otherInflationRate > 10
+  const hasInvalidDetailedBreakdown = inputMode === 'detailed'
+    && Object.values(detailedBreakdown).some((item) => (
+      !Number.isFinite(item.currentAmount)
+      || !Number.isFinite(item.nextAmount)
+      || !Number.isFinite(item.cpiRate)
+      || item.currentAmount < 0
+      || item.nextAmount < 0
+      || item.cpiRate < -1
+      || item.cpiRate > 10
+    ))
   const analysisValidationMessage = isPayslipInvalid
     ? payslipSummary.hasNegativeNet
       ? '工资条扣缴合计超过税前工资，请先核对扣缴金额。'
       : '工资条模式需要先填好现在与下一阶段两期税前工资，才能生成有效解读。'
+    : hasInvalidAmount
+      ? '收入与支出必须是 0 到 1,000,000 元之间的有效数字。'
+    : hasInvalidInflationRate || hasInvalidDetailedBreakdown
+      ? '支出变化率或详细分类超出有效范围，请先核对输入。'
     : null
   const isImproving = result.monthlyRemainderChange > 0
   const isFlat = result.monthlyRemainderChange === 0
@@ -410,6 +443,8 @@ function App() {
             requestPayload={{
               input: effectiveCalculationInput,
               calculation: result,
+              calculationVersion: CALCULATION_VERSION,
+              cityContext,
               locale: 'zh-CN',
               includeInsight: true,
               inputMode,

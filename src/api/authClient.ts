@@ -17,6 +17,61 @@ const configuredApiUrl = typeof __REAL_RAISE_ANALYSIS_API_URL__ === 'string'
   ? __REAL_RAISE_ANALYSIS_API_URL__
   : ''
 const API_BASE_URL = configuredApiUrl.trim().replace(/\/+$/, '')
+const LOCAL_SESSION_KEY = 'real_raise_local_sso_session'
+
+export function loadAuthSessionToken(): string {
+  try {
+    return typeof sessionStorage !== 'undefined'
+      ? sessionStorage.getItem(LOCAL_SESSION_KEY) || ''
+      : ''
+  } catch {
+    return ''
+  }
+}
+
+function storeAuthSessionToken(token: string): void {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    if (token) sessionStorage.setItem(LOCAL_SESSION_KEY, token)
+    else sessionStorage.removeItem(LOCAL_SESSION_KEY)
+  } catch {
+    // Session cookies remain the production path if storage is unavailable.
+  }
+}
+
+function authHeaders(base: Record<string, string> = {}): Record<string, string> {
+  const sessionToken = loadAuthSessionToken()
+  return sessionToken ? { ...base, Authorization: `Bearer ${sessionToken}` } : base
+}
+
+async function consumeLocalAuthHandoff(): Promise<void> {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  const handoffCode = url.searchParams.get('auth_handoff') ?? ''
+  if (!handoffCode) return
+  const response = await fetch(`${API_BASE_URL}/api/auth/handoff`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ code: handoffCode }),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || typeof body.sessionToken !== 'string' || !body.sessionToken) {
+    throw new Error(body?.error?.message || '本地登录交接失败，请重新登录。')
+  }
+  storeAuthSessionToken(body.sessionToken)
+  url.searchParams.delete('auth_handoff')
+  url.searchParams.delete('auth')
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
+/**
+ * Auth is an optional production capability. A blank API base is the local
+ * static/replay runtime, not a failed authentication state.
+ */
+export function isAuthConfigured(): boolean {
+  return API_BASE_URL.length > 0
+}
 
 export type AuthUser = {
   id: string
@@ -94,7 +149,19 @@ export class AuthClient {
 
   private async performCheckAuth(): Promise<AuthState> {
     if (this.useMock) {
-      this.setState({ loading: false })
+      this.setState({ loading: false, error: null, errorCode: null })
+      return this.state
+    }
+
+    if (!isAuthConfigured()) {
+      this.setState({
+        authenticated: false,
+        user: null,
+        canRunAnalysis: false,
+        loading: false,
+        error: null,
+        errorCode: null,
+      })
       return this.state
     }
 
@@ -118,9 +185,10 @@ export class AuthClient {
     }
 
     try {
+      await consumeLocalAuthHandoff()
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         method: 'GET',
-        headers: { Accept: 'application/json' },
+        headers: authHeaders({ Accept: 'application/json' }),
         credentials: 'include',
       })
 
@@ -148,6 +216,7 @@ export class AuthClient {
           canRunAnalysis: false,
           loading: false,
         })
+        storeAuthSessionToken('')
         return this.state
       }
       this.setState({
@@ -178,8 +247,12 @@ export class AuthClient {
    * 发起 InfiniSynapse Partner SSO 登录（重定向）
    */
   public login(): void {
-    if (typeof window !== 'undefined') {
-      window.location.href = `${API_BASE_URL}/api/auth/infini/start`
+    if (typeof window !== 'undefined' && isAuthConfigured()) {
+      const startUrl = new URL(`${API_BASE_URL}/api/auth/infini/start`)
+      // OAuth callback always lands on the Worker, but the final redirect must
+      // return to the exact trusted frontend origin that initiated the flow.
+      startUrl.searchParams.set('return_origin', window.location.origin)
+      window.location.href = startUrl.toString()
     }
   }
 
@@ -187,7 +260,7 @@ export class AuthClient {
    * 退出登录
    */
   public async logout(): Promise<void> {
-    if (this.useMock) {
+    if (this.useMock || !isAuthConfigured()) {
       this.setState({ authenticated: false, user: null, canRunAnalysis: false, loading: false })
       return
     }
@@ -195,12 +268,13 @@ export class AuthClient {
     try {
       await fetch(`${API_BASE_URL}/api/auth/logout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
       })
     } catch {
       // ignore
     } finally {
+      storeAuthSessionToken('')
       this.setState({
         authenticated: false,
         user: null,
@@ -277,10 +351,16 @@ export function formatFriendlyAuthErrorMessage(code?: string | null, rawMessage?
     normalizedMsg.includes('cancelled') ||
     normalizedMsg.includes('cancel')
   ) {
-    return '登录授权已取消。未登录状态下仍可继续使用本地算表与 Mock 演示。'
+    return '登录授权已取消。未登录状态下仍可继续使用本地算表与真实任务回放。'
   }
   if (normalizedCode === 'SIMULATED_ERROR') {
     return '模拟的网络响应异常，请点击“重新尝试”按钮恢复。'
+  }
+  if (normalizedCode === 'ANALYSIS_TIMEOUT') {
+    return '实时分析超过 10 分钟仍未收到平台完成信号，任务已安全取消；本地算表与已有回放不受影响。'
+  }
+  if (normalizedCode === 'ANALYSIS_CANCELLED' || normalizedCode === 'ABORT_ERR') {
+    return '实时分析请求已取消；本地算表与已有回放不受影响。'
   }
   if (rawMessage && !rawMessage.includes('Error:') && !rawMessage.includes('at ') && rawMessage.length < 100) {
     return rawMessage

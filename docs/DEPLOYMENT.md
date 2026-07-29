@@ -22,6 +22,7 @@
 - 请求体上限 20 KB，金额和通胀率都有范围校验。
 - CORS 只允许 `ALLOWED_ORIGINS` 中的现有静态站。
 - Cloudflare Rate Limiting：同一来源每 60 秒最多 1 次。
+- InfiniSynapse 长任务默认最多运行 10 分钟（`ANALYSIS_TIMEOUT_MS=600000`，部署环境可在 1–15 分钟范围内调节）。
 - Durable Object 硬保险丝：北京时间每天最多 10 次真实调用，同时最多 1 个任务。
 - Worker 不保存工资输入或分析结果；Durable Object 只保存日期、调用数和短期 lease。
 - 达到限速、每日上限或 Live 关闭时，前端优先进入真实存档回放，再进入本地演示。
@@ -114,11 +115,17 @@ npm run worker:dev
 
 重新部署 Worker 后，新请求不再消耗 InfiniSynapse 额度，静态站自动使用回放/演示。若怀疑 Key 泄露，再到平台轮换 Key，并重新执行 `wrangler secret put`。
 
-## 当前未完成
+## 每次发布都必须重新确认
 
-- 当前电脑尚未通过 `wrangler login` 完成 Cloudflare 授权。
-- 真实静态站 Origin 尚未写入 `ALLOWED_ORIGINS`。
-- Worker 尚未部署，Secret 尚未录入。
-- 尚未完成线上真实任务与平台日志核验。
+仓库文档不记录 Secret，也不把某次成功部署当作永久事实。每次发布前都要
+从 Cloudflare 与 InfiniSynapse 的实际环境重新确认：
 
-这些事项完成前，不能在报名材料中声称“Cloudflare 服务端链路已上线验证”。
+- Wrangler 当前身份和目标 Worker 正确；
+- `ALLOWED_ORIGINS`、Partner SSO 回调和生产站 Origin 一致；
+- Secret 已配置且日志中没有泄露；
+- 一个全新 Partner 用户能登录、发起实时任务并在平台后台完成用户级归因；
+- `completed.provenance` 与下载的 `analysis-manifest.json` 一致；
+- 当前回放明确显示旧口径兼容提示，不冒充实时任务。
+
+本次关键数据链改造默认只提交 Draft PR，不自动部署；具体上线和回滚门槛见
+`docs/CRITICAL_DATA_CHAIN_RELEASE.md`。

@@ -13,24 +13,22 @@ import {
   Loader2,
   PieChart,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
   StopCircle,
-  Sliders,
-  SlidersHorizontal,
   TrendingUp,
   Zap,
 } from 'lucide-react'
-import { apiClient, generateMockStructuredInsight } from '../api/apiClient'
-import { hasApiKey } from '../api/apiKeyStore'
+import { apiClient, buildDeterministicStructuredInsight } from '../api/apiClient'
 import { requestSignature } from '../api/requestSignature'
-import { ApiKeyPanel } from './ApiKeyPanel'
-import { JudgeAccessPanel } from './JudgeAccessPanel'
 import { PartnerSsoPanel } from './PartnerSsoPanel'
 import { authClient, formatFriendlyAuthErrorMessage, type AuthState } from '../api/authClient'
 import type {
   AgentTaskStatus,
+  AnalysisExecutionProvenance,
   AnalysisModel,
   RealRaiseInsight,
+  ReplayMeta,
   SourceReference,
   StartAnalysisRequest,
 } from '../api/realRaiseContract'
@@ -48,6 +46,42 @@ type AnalysisInputContext = {
   signature: string
   incomeInputMode: 'net' | 'payslip'
   inputMode: 'basic' | 'detailed'
+  cityName: string
+  calculationVersion: string
+  analysisModel: AnalysisModel | ''
+}
+
+function analysisModelLabel(model: AnalysisModel | '' | 'platform-default'): string {
+  if (model === 'deepseek-v4-flash') return 'DeepSeek V4 Flash'
+  if (model === 'deepseek-v4-pro') return 'DeepSeek V4 Pro'
+  return '跟随平台默认'
+}
+
+function executionLabel(provenance: AnalysisExecutionProvenance | null): string {
+  if (!provenance) return '分析结果已生成'
+  const fallbackSuffix = provenance.artifactStatus === 'stream-fallback'
+    ? '（平台未回传报告文件，使用事件流正文）'
+    : provenance.artifactStatus === 'deterministic-only'
+      ? '（仅确定性凭证）'
+      : ''
+  if (provenance.mode === 'partner-live') return `InfiniSynapse 用户实时任务已完成${fallbackSuffix}`
+  if (provenance.mode === 'judge-live') return `InfiniSynapse 实时任务已完成${fallbackSuffix}`
+  if (provenance.mode === 'replay') return `InfiniSynapse 历史任务存档回放${fallbackSuffix}`
+  return `本地演示结果已生成${fallbackSuffix}`
+}
+
+function narrativeLabel(provenance: AnalysisExecutionProvenance): string {
+  if (provenance.narrativeSource === 'infinisynapse-live') return '正文：InfiniSynapse 实时任务'
+  if (provenance.narrativeSource === 'infinisynapse-replay') return '正文：InfiniSynapse 历史任务存档'
+  return '正文：Real Raise 本地演示模板'
+}
+
+function artifactStatusLabel(status?: AnalysisExecutionProvenance['artifactStatus']): string {
+  if (status === 'verified') return '平台报告文件已核验'
+  if (status === 'stream-fallback') return '平台未回传报告文件，使用事件流正文'
+  if (status === 'deterministic-only') return '仅有 Real Raise 确定性凭证'
+  if (status === 'failed-retryable') return '平台证据不完整，可重试'
+  return '产物状态未声明'
 }
 
 /** Helper to render inline **bold** text without dangerouslySetInnerHTML */
@@ -243,6 +277,34 @@ function AnalysisBlock({
   )
 }
 
+function AnalysisContextSummary({
+  provenance,
+  requestPayload,
+}: {
+  provenance: AnalysisExecutionProvenance
+  requestPayload: StartAnalysisRequest
+}) {
+  return (
+    <details className="analysis-context-details">
+      <summary>查看本次分析上下文</summary>
+      <div className="analysis-context-grid">
+        <div><span>Prompt 版本</span><strong>{provenance.promptVersion || '历史任务未记录'}</strong></div>
+        <div><span>上下文版本</span><strong>{provenance.contextVersion || '历史任务未记录'}</strong></div>
+        <div><span>任务目标</span><strong>{provenance.taskGoal || '判断涨薪留存与主要抵消因素'}</strong></div>
+        <div><span>计算版本</span><strong>{provenance.calculationVersion}</strong></div>
+        <div><span>城市口径</span><strong>{requestPayload.cityContext.cityName} · {requestPayload.cityContext.period} · {requestPayload.cityContext.coverageTier}</strong></div>
+        <div><span>来源 IDs</span><strong>{provenance.sourceIds?.join('、') || '历史任务未记录'}</strong></div>
+        <div><span>执行模式</span><strong>{provenance.mode} · {provenance.attribution}</strong></div>
+        <div><span>产物状态</span><strong>{artifactStatusLabel(provenance.artifactStatus)}</strong></div>
+      </div>
+      <p className="analysis-context-boundary">
+        数字权威：Real Raise 确定性算表；InfiniSynapse 负责排序、比较、解释和报告表达。
+        {provenance.inputSignature ? ` 输入签名：${provenance.inputSignature}` : ''}
+      </p>
+    </details>
+  )
+}
+
 export const InsightSection: React.FC<InsightSectionProps> = ({
   requestPayload,
   analysisValidationMessage = null,
@@ -257,24 +319,18 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [percent, setPercent] = useState<number>(0)
   const [insightText, setInsightText] = useState<string | null>(null)
   const [structuredInsight, setStructuredInsight] = useState<RealRaiseInsight | null>(null)
+  const [provenance, setProvenance] = useState<AnalysisExecutionProvenance | null>(null)
   const [sources, setSources] = useState<SourceReference[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [simulatedError] = useState<boolean>(false)
   const serverLiveConfigured = apiClient.getActiveMode() === 'server-live'
-  const [judgeUnlocked, setJudgeUnlocked] = useState<boolean>(false)
-  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => (
-    serverLiveConfigured ? false : hasApiKey()
-  ))
-  const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
-  const [userSelectedModel, setUserSelectedModel] = useState<AnalysisModel | ''>('')
-  const [judgeSelectedModel, setJudgeSelectedModel] = useState<AnalysisModel | ''>('')
   const [authState, setAuthState] = useState<AuthState>(() => authClient.getState())
   const [taskInputContext, setTaskInputContext] = useState<AnalysisInputContext | null>(null)
   const [reportInputContext, setReportInputContext] = useState<AnalysisInputContext | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
-  const lastServerModeRef = useRef<'partner' | 'judge'>('partner')
+  const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
 
   useEffect(() => {
     const unsub = authClient.subscribe((st) => setAuthState(st))
@@ -282,19 +338,15 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     return unsub
   }, [])
   /** 非空 = 本次结果来自真实任务存档回放（必须显式标注，不冒充实时）。 */
-  const [replayMeta, setReplayMeta] = useState<{ scenarioId: string; vendorTaskId: string; recordedAt: string } | null>(null)
-  const [exportNotice, setExportNotice] = useState<string | null>(null)
+  const [replayMeta, setReplayMeta] = useState<ReplayMeta | null>(null)
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const activeTaskIdRef = useRef<string | null>(null)
   const runVersionRef = useRef(0)
   const startInFlightRef = useRef(false)
   const pendingCancellationRef = useRef<Promise<boolean> | null>(null)
-  const currentAnalysisModel = lastServerModeRef.current === 'partner'
-    ? userSelectedModel
-    : (judgeSelectedModel || selectedModel)
   const currentRequestSignature = requestSignature({
     ...requestPayload,
-    ...(currentAnalysisModel ? { analysisModel: currentAnalysisModel } : {}),
+    ...(selectedModel ? { analysisModel: selectedModel } : {}),
   })
 
   const taskUsesPreviousInputs = Boolean(
@@ -309,7 +361,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   )
   const describeInputContext = (context: AnalysisInputContext | null) => {
     if (!context) return '提交时的输入'
-    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'}`
+    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'} · ${context.cityName} · ${analysisModelLabel(context.analysisModel)} · ${context.calculationVersion}`
   }
   const cancelTaskAndTrack = (id: string): Promise<boolean> => {
     const promise = apiClient.cancelAnalysis(id)
@@ -360,25 +412,22 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setPercent(0)
     setInsightText(null)
     setStructuredInsight(null)
+    setProvenance(null)
     setSources([])
     setErrorMessage(null)
     setDownloadError(null)
     setReplayMeta(null)
-    setExportNotice(null)
     setTaskInputContext(null)
     setReportInputContext(null)
   }, [remoteFeatureEnabled])
 
   const handleStartInsight = async (
-    serverMode?: 'partner' | 'judge',
-    forceSimulatedError?: boolean
+    forceSimulatedError?: boolean,
+    executionMode: 'live' | 'replay' = 'live',
   ) => {
     if (!remoteFeatureEnabled || analysisValidationMessage || startInFlightRef.current) return
     startInFlightRef.current = true
     setIsStarting(true)
-    const activeServerMode = serverMode ?? lastServerModeRef.current
-    lastServerModeRef.current = activeServerMode
-
     const runVersion = runVersionRef.current + 1
     runVersionRef.current = runVersion
     unsubscribeRef.current?.()
@@ -398,7 +447,6 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     }
 
     const isSimError = typeof forceSimulatedError === 'boolean' ? forceSimulatedError : simulatedError
-    const activeModel = activeServerMode === 'partner' ? userSelectedModel : (judgeSelectedModel || selectedModel)
 
     setTaskId(null)
     setStatus('queued')
@@ -409,24 +457,29 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setDownloadError(null)
     setInsightText(null)
     setStructuredInsight(null)
+    setProvenance(null)
     setSources([])
     setReplayMeta(null)
-    setExportNotice(null)
     setReportInputContext(null)
 
     try {
       const payload: StartAnalysisRequest = {
         ...requestPayload,
         simulatedError: isSimError,
-        ...(activeModel ? { analysisModel: activeModel } : {}),
+        ...(executionMode === 'live' && selectedModel ? { analysisModel: selectedModel } : {}),
       }
       const runInputContext: AnalysisInputContext = {
         signature: requestSignature(payload),
         incomeInputMode: payload.incomeInputMode ?? 'net',
         inputMode: payload.inputMode ?? 'basic',
+        cityName: payload.cityContext.cityName,
+        calculationVersion: payload.calculationVersion,
+        analysisModel: payload.analysisModel ?? '',
       }
       setTaskInputContext(runInputContext)
-      const response = await apiClient.startAnalysis(payload, activeServerMode)
+      const response = executionMode === 'replay'
+        ? await apiClient.startReplayAnalysis(payload)
+        : await apiClient.startAnalysis(payload)
       const newTaskId = response.taskId
       if (runVersion !== runVersionRef.current) {
         await apiClient.cancelAnalysis(newTaskId)
@@ -458,7 +511,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           setInsightText(evt.insight)
           setSources(evt.sources)
           setReplayMeta(evt.replayMeta ?? null)
-          const struct = evt.structuredInsight || generateMockStructuredInsight(payload)
+          setProvenance(evt.provenance)
+          const struct = evt.structuredInsight || buildDeterministicStructuredInsight(payload)
           setStructuredInsight(struct)
           setStage('分析完成')
           setReportInputContext(runInputContext)
@@ -476,10 +530,6 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     } catch (err: any) {
       if (runVersion !== runVersionRef.current) return
       activeTaskIdRef.current = null
-      if (serverLiveConfigured) {
-        setJudgeUnlocked(false)
-        setKeyConfigured(false)
-      }
       setStatus('failed')
       setErrorMessage(formatFriendlyAuthErrorMessage(err.code || err.name, err.message))
       setTaskInputContext(null)
@@ -543,27 +593,6 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     }
   }
 
-  /** dev 工具：把刚跑完的真实任务导出为回放包，落盘 public/replays/ 后评委无 Key 可看。 */
-  const handleExportReplay = () => {
-    if (!taskId) return
-    const scenarioId = `scenario-${Date.now()}`
-    const json = apiClient.exportReplay(taskId, scenarioId)
-    if (!json) {
-      setExportNotice('只有本次会话里真实跑完的任务才能导出回放包。')
-      return
-    }
-    const blob = new Blob([json], { type: 'application/json;charset=utf-8' })
-    const blobUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = blobUrl
-    a.download = `${scenarioId}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(blobUrl)
-    setExportNotice('回放包已下载：重命名成场景名放进 public/replays/，再运行 npm run replays:manifest。')
-  }
-
   return (
     <div className={`insight-card-wrapper status-${status}`}>
       <div className="insight-card-header">
@@ -610,8 +639,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         <div className="analysis-stale-notice completed-stale-notice" role="status">
           <AlertTriangle size={15} />
           <span>
-            当前报告基于“{describeInputContext(reportInputContext)}”提交时的数据；左侧已有新输入。
-            确认左侧结果后，点击“按最新输入重新分析”才会发起新任务。
+            当前报告基于“{describeInputContext(reportInputContext)}”生成；页面输入或分析模型已经变化。
+            确认当前选择后，点击“按最新输入重新分析”才会发起新任务。
           </span>
         </div>
       )}
@@ -621,6 +650,33 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           <span>{analysisValidationMessage}</span>
         </div>
       )}
+
+      {serverLiveConfigured
+        && remoteFeatureEnabled
+        && authState.authenticated
+        && authState.canRunAnalysis !== false
+        && (
+          <div className="analysis-model-control">
+            <div>
+              <strong>分析模型</strong>
+              <span>仅影响下一次用户实时任务</span>
+            </div>
+            <label htmlFor="partner-analysis-model-select">
+              <span className="sr-only">选择 InfiniSynapse 分析模型</span>
+              <select
+                id="partner-analysis-model-select"
+                className="api-key-model-select"
+                value={selectedModel}
+                disabled={isStarting || status === 'queued' || status === 'running'}
+                onChange={(event) => setSelectedModel(event.target.value as AnalysisModel | '')}
+              >
+                <option value="">跟随平台默认</option>
+                <option value="deepseek-v4-flash">DeepSeek V4 Flash（省额度）</option>
+                <option value="deepseek-v4-pro">DeepSeek V4 Pro（高质量）</option>
+              </select>
+            </label>
+          </div>
+        )}
 
       {!remoteFeatureEnabled ? (
         <div className="insight-body idle-state">
@@ -639,120 +695,44 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               结合官方 CPI 数据与您的收支输入，生成定制化 AI 生活解读报告。
             </p>
 
-            {/* --- InfiniSynapse SSO 用户模式主区域 --- */}
-            <div className="analysis-mode-section partner-user-section">
-              <PartnerSsoPanel />
-              {authState.authenticated && authState.canRunAnalysis !== false && (
-                <div className="user-mode-controls">
-                  <div className="mode-identity-tag">
-                    <span className="identity-badge user-badge">👤 当前模式：使用我的 InfiniSynapse 账号（消耗个人额度）</span>
-                  </div>
-                  <label className="api-key-model-label" htmlFor="user-analysis-model-select">
-                    用户模式模型选择：
-                    <select
-                      id="user-analysis-model-select"
-                      className="api-key-model-select"
-                      value={userSelectedModel}
-                      onChange={(event) => {
-                        const model = event.target.value as AnalysisModel | ''
-                        setUserSelectedModel(model)
-                      }}
+            {/* --- 两条用户路径：Partner 实时、未登录真实回放 --- */}
+            {serverLiveConfigured && (
+              <div className="analysis-mode-section partner-user-section">
+                <PartnerSsoPanel />
+                {authState.authenticated && authState.canRunAnalysis !== false && (
+                  <div className="user-mode-controls">
+                    <div className="mode-identity-tag">
+                      <span className="identity-badge user-badge">👤 当前模式：使用我的 InfiniSynapse 账号（消耗个人额度）</span>
+                    </div>
+                    <button
+                      className="btn-generate-insight btn-user-mode"
+                      onClick={() => handleStartInsight()}
+                      disabled={isStarting || Boolean(analysisValidationMessage)}
+                      type="button"
                     >
-                      <option value="">跟随平台默认</option>
-                      <option value="deepseek-v4-flash">Flash 省额度</option>
-                      <option value="deepseek-v4-pro">Pro 高质量</option>
-                    </select>
-                  </label>
-                  <button
-                    className="btn-generate-insight btn-user-mode"
-                    onClick={() => handleStartInsight('partner')}
-                    disabled={isStarting || Boolean(analysisValidationMessage)}
-                    type="button"
-                  >
-                    <Sparkles size={16} /> 使用我的 InfiniSynapse 账号生成 AI 深度解读
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* --- 高级 / 开发者设置 / 评委模式折叠区域 --- */}
-            <details className="developer-byok-details">
-              <summary className="developer-byok-summary">
-                <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
-              </summary>
-              <div className="developer-byok-content">
-                {!serverLiveConfigured && (
-                  <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-                )}
-                {serverLiveConfigured && (
-                  <div className="judge-mode-controls">
-                    <JudgeAccessPanel
-                      unlocked={judgeUnlocked}
-                      onChange={(unlocked) => {
-                        setJudgeUnlocked(unlocked)
-                        setKeyConfigured(unlocked)
-                      }}
-                    />
-                    {judgeUnlocked && (
-                      <div className="judge-active-box">
-                        <div className="mode-identity-tag">
-                          <span className="identity-badge judge-badge">⚖️ 当前模式：以评委身份发起（使用服务端评委 Key）</span>
-                        </div>
-                        <label className="api-key-model-label" htmlFor="judge-analysis-model-select">
-                          评委模式模型选择：
-                          <select
-                            id="judge-analysis-model-select"
-                            className="api-key-model-select"
-                            value={judgeSelectedModel}
-                            onChange={(event) => {
-                              const model = event.target.value as AnalysisModel | ''
-                              setJudgeSelectedModel(model)
-                            }}
-                          >
-                            <option value="">跟随平台默认</option>
-                            <option value="deepseek-v4-flash">Flash 省额度</option>
-                            <option value="deepseek-v4-pro">Pro 高质量</option>
-                          </select>
-                        </label>
-                        <button
-                          className="btn-generate-insight btn-judge-mode"
-                          onClick={() => handleStartInsight('judge')}
-                          disabled={isStarting || Boolean(analysisValidationMessage)}
-                          type="button"
-                        >
-                          <Zap size={16} /> 以评委身份发起解读 (评委密钥模式)
-                        </button>
-                      </div>
-                    )}
+                      <Sparkles size={16} /> 使用我的 InfiniSynapse 账号生成 AI 深度解读
+                    </button>
                   </div>
                 )}
               </div>
-            </details>
-
-            {/* --- 兜底按钮：未登录且未解锁评委模式时 --- */}
-            {(!authState.authenticated || authState.canRunAnalysis === false) && !judgeUnlocked && (
-              <button
-                className="btn-generate-insight"
-                onClick={() => handleStartInsight('partner')}
-                disabled={isStarting || Boolean(analysisValidationMessage)}
-                type="button"
-              >
-                <Sparkles size={16} /> {serverLiveConfigured ? '生成 AI 深度解读报告' : keyConfigured ? '生成 AI 生活解读' : '生成解读'}
-              </button>
             )}
+
+            {/* 登录状态不影响回放：始终只播放与当前输入精确匹配的真实任务存档。 */}
+            <button
+              className="btn-generate-insight btn-replay-mode"
+              onClick={() => handleStartInsight(undefined, 'replay')}
+              disabled={isStarting || authState.loading || Boolean(analysisValidationMessage)}
+              type="button"
+            >
+              <BookOpen size={16} /> 查看真实任务回放（不消耗积分）
+            </button>
 
             <span className="quota-hint">
               {serverLiveConfigured
-                ? judgeUnlocked && authState.authenticated
-                  ? '已登录 InfiniSynapse；请按页面按钮选择本次生成身份。'
-                  : judgeUnlocked
-                  ? '评委模式已解锁：由 Cloudflare Worker 服务端调用项目 Key，浏览器不接触密钥'
-                  : authState.authenticated
-                  ? 'InfiniSynapse 账号已连接：使用您的平台积分在服务端调用 AI 分析'
-                  : '支持 InfiniSynapse Partner SSO 登录 / 回放存档 / 本地 Mock 演示'
-                : keyConfigured
-                ? '由你的 Key 直接调用分析平台，用量计入你自己的账号'
-                : '优先使用 Partner SSO / 回放存档，无 Key 也可使用本地演示 Mock'}
+                ? authState.authenticated
+                  ? '已登录：使用你的 InfiniSynapse 账号生成实时报告。'
+                  : '未登录：查看真实任务回放；登录后可生成个人实时报告。'
+                : '当前未连接实时服务：仅提供真实任务回放。'}
             </span>
           </div>
         </div>
@@ -783,7 +763,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           <div className="insight-result-header">
             <span className="success-tag">
               <CheckCircle2 size={14} />
-              {replayMeta ? '真实任务存档回放' : keyConfigured ? 'AI 生活解读已生成' : '演示解读已生成'}
+              {executionLabel(provenance)}
             </span>
             {sources.length > 0 && (
               <button
@@ -797,12 +777,42 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           </div>
 
           {replayMeta && (
-            <p className="replay-banner">
-              真实任务存档回放 · 任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
-              {serverLiveConfigured
-                ? '评委可在分析平台任务后台核验；实时服务恢复后可再次生成。'
-                : '评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。'}
-            </p>
+            <>
+              <p className="replay-banner">
+                {replayMeta.compatibility ? '历史真实任务存档（旧口径）' : '真实任务存档回放'}
+                {' · '}任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
+                供应商原件未改写（完整性已审计） ·
+                {'登录 InfiniSynapse 后可实时重跑。'}
+              </p>
+              {replayMeta.compatibility && (
+                <p className="replay-banner replay-compatibility-warning" role="alert">
+                  <strong>历史口径提示：</strong>
+                  {replayMeta.compatibility.userNotice}
+                  原报告记录值为 {(replayMeta.compatibility.recordedValue * 100).toFixed(2)}%，
+                  当前页面口径为 {(replayMeta.compatibility.currentValue * 100).toFixed(2)}%。
+                </p>
+              )}
+            </>
+          )}
+
+          {provenance && (
+            <div className="analysis-provenance-banner" role="status">
+              <ShieldCheck size={15} />
+              <div>
+                <strong>{narrativeLabel(provenance)}</strong>
+                <span>
+                  结构化卡片：Real Raise 确定性诊断 · 数字权威：
+                  {provenance.calculationAuthority === 'worker-deterministic' ? 'Worker 服务端重算' : '浏览器本地算表'}
+                  {' · '}公式 {provenance.calculationVersion}
+                  {' · '}归因 {provenance.attribution}
+                  {provenance.cached ? ' · 已命中相同输入缓存' : ''}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {provenance && (
+            <AnalysisContextSummary provenance={provenance} requestPayload={requestPayload} />
           )}
 
           <div className="insight-text-content">
@@ -879,7 +889,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                         ? `${(structuredInsight.benchmark.overallCpiRate * 100).toFixed(1)}%`
                         : '—'}
                     </strong>
-                    <span className="bm-sub">2025 官方通胀大盘</span>
+                    <span className="bm-sub">{requestPayload.cityContext.period} 官方 CPI 基准</span>
                   </div>
                 </div>
 
@@ -965,11 +975,11 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                   <div>
                     <h4>结构化诊断分析证据产物 (Artifact)</h4>
                     <p className="artifact-subtitle">
-                      {replayMeta
-                        ? '真实任务存档中的平台产物（回放，可在平台后台核验）'
-                        : keyConfigured
-                        ? '由分析平台产物与本地确定性算表导出的只读凭证'
-                        : '由本地确定性算表导出的只读凭证（演示模式）'}
+                      {provenance?.narrativeSource === 'infinisynapse-replay'
+                        ? '平台历史正文与 Real Raise 确定性诊断分层展示；回放口径见执行证明'
+                        : provenance?.narrativeSource === 'infinisynapse-live'
+                        ? '平台实时正文 + Real Raise 确定性数字凭证；两类来源不会混称'
+                        : 'Real Raise 本地模板与确定性算表导出的演示凭证'}
                     </p>
                   </div>
                   <span className="artifact-badge">REAL_RAISE_REPORT.md</span>
@@ -983,7 +993,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
 任务ID: ${taskId || 'mock-task-1'}
 --------------------------------------------------
 - 状态: 已完成 (Completed)
-- 产物文件: explanation.md / evidence.csv / analysis-manifest.json
+- 产物文件: explanation.md / driver-ranking.csv / scenario-matrix.csv / share-summary.md / evidence.csv / analysis-manifest.json
 - 数据底座: 本地确定性算表 + 2026H1 官方 CPI
 - 权威原则: AI 解读不覆盖本地数字卡片金额
 `}</code></pre>
@@ -995,7 +1005,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                       className="btn-artifact-dl"
                       onClick={() => handleDownloadArtifact('explanation.md')}
                     >
-                      <Download size={13} /> 下载报告凭证 (explanation.md)
+                      <Download size={13} />
+                      {replayMeta ? '下载历史平台报告原文' : '下载报告凭证'} (explanation.md)
                     </button>
                     <button
                       type="button"
@@ -1004,6 +1015,52 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                     >
                       <Download size={13} /> 下载计算数据 (evidence.csv)
                     </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('analysis-manifest.json')}
+                    >
+                      <Download size={13} /> 下载当前执行清单 (analysis-manifest.json)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('driver-ranking.csv')}
+                    >
+                      <Download size={13} /> 下载驱动因素排名 (driver-ranking.csv)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('scenario-matrix.csv')}
+                    >
+                      <Download size={13} /> 下载情景矩阵 (scenario-matrix.csv)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('share-summary.md')}
+                    >
+                      <Download size={13} /> 下载分享摘要 (share-summary.md)
+                    </button>
+                    {replayMeta && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-artifact-dl secondary-dl"
+                          onClick={() => handleDownloadArtifact('vendor-original-evidence.csv')}
+                        >
+                          <Download size={13} /> 下载历史供应商证据原件
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-artifact-dl secondary-dl"
+                          onClick={() => handleDownloadArtifact('vendor-original-analysis-manifest.json')}
+                        >
+                          <Download size={13} /> 下载历史供应商清单原件
+                        </button>
+                      </>
+                    )}
                   </div>
                   {downloadError && <p className="download-error-text">{downloadError}</p>}
                 </div>
@@ -1011,19 +1068,17 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             </div>
           )}
 
-          {/* 看完演示后想换成自己的 Key 重跑，入口留在结果下方。 */}
-          {!serverLiveConfigured && !keyConfigured && (
-            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-          )}
-
           <div className="insight-action-footer">
             <span className="footnote-text">数据来源：权威公开统计数据库 & 本地精准算表</span>
             <div className="footer-actions">
-              {import.meta.env.DEV && !serverLiveConfigured && keyConfigured && !replayMeta && (
-                <button className="btn-export-replay" onClick={handleExportReplay} type="button">
-                  <Download size={13} /> 导出回放包（dev）
-                </button>
-              )}
+              <button
+                className="btn-reanalyze btn-replay-mode"
+                onClick={() => handleStartInsight(undefined, 'replay')}
+                disabled={isStarting || Boolean(analysisValidationMessage)}
+                type="button"
+              >
+                <BookOpen size={13} /> 查看真实任务回放
+              </button>
               <button
                 className="btn-reanalyze"
                 onClick={() => handleStartInsight()}
@@ -1034,7 +1089,6 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               </button>
             </div>
           </div>
-          {exportNotice && <p className="export-notice">{exportNotice}</p>}
         </div>
       ) : status === 'failed' ? (
         <div className="insight-body failed-state">
@@ -1045,29 +1099,10 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               <p>{errorMessage}</p>
             </div>
           </div>
-          <PartnerSsoPanel />
-          <details className="developer-byok-details">
-            <summary className="developer-byok-summary">
-              <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
-            </summary>
-            <div className="developer-byok-content">
-              {!serverLiveConfigured && (
-                <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-              )}
-              {serverLiveConfigured && !judgeUnlocked && (
-                <JudgeAccessPanel
-                  unlocked={judgeUnlocked}
-                  onChange={(unlocked) => {
-                    setJudgeUnlocked(unlocked)
-                    setKeyConfigured(unlocked)
-                  }}
-                />
-              )}
-            </div>
-          </details>
+          {serverLiveConfigured && <PartnerSsoPanel />}
           <button
             className="btn-retry"
-            onClick={() => handleStartInsight(undefined, false)}
+            onClick={() => handleStartInsight(false)}
             disabled={isStarting || Boolean(analysisValidationMessage)}
             type="button"
           >
@@ -1077,26 +1112,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       ) : status === 'cancelled' ? (
         <div className="insight-body cancelled-state">
           <p className="cancelled-note">任务已取消。您的本地输入与精准计算数字已被完整保留。</p>
-          <PartnerSsoPanel />
-          <details className="developer-byok-details">
-            <summary className="developer-byok-summary">
-              <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
-            </summary>
-            <div className="developer-byok-content">
-              {!serverLiveConfigured && (
-                <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-              )}
-              {serverLiveConfigured && !judgeUnlocked && (
-                <JudgeAccessPanel
-                  unlocked={judgeUnlocked}
-                  onChange={(unlocked) => {
-                    setJudgeUnlocked(unlocked)
-                    setKeyConfigured(unlocked)
-                  }}
-                />
-              )}
-            </div>
-          </details>
+          {serverLiveConfigured && <PartnerSsoPanel />}
           <button
             className="btn-restart"
             onClick={() => handleStartInsight()}

@@ -72,6 +72,60 @@ export type RealRaiseInsight = {
   sources: SourceReference[]
 }
 
+export const CALCULATION_VERSION = 'living-cost.v2' as const
+
+export type AnalysisCityContext = {
+  cityCode: string
+  cityName: string
+  period: string
+  coverageTier: 'A-history' | 'B-current' | 'C-fallback'
+  cityCategoryCount: number
+  fallbackCategoryCount: number
+  /** Decimal rate: 0.01 means 1%. */
+  overallCpiRate: number | null
+  overallSource: SourceReference | null
+  caveat: string
+}
+
+export type AnalysisExecutionProvenance = {
+  mode: 'partner-live' | 'judge-live' | 'replay' | 'mock'
+  narrativeSource: 'infinisynapse-live' | 'infinisynapse-replay' | 'local-template'
+  structuredInsightSource: 'real-raise-deterministic'
+  calculationAuthority: 'worker-deterministic' | 'local-deterministic'
+  calculationVersion: typeof CALCULATION_VERSION
+  attribution: 'partner-user-key' | 'judge-project-key' | 'none'
+  vendorTaskId?: string
+  cached?: boolean
+  promptVersion?: string
+  contextVersion?: string
+  taskGoal?: string
+  sourceIds?: string[]
+  inputSignature?: string
+  artifactStatus?: 'verified' | 'stream-fallback' | 'deterministic-only' | 'failed-retryable'
+  analysisModel?: AnalysisModel | 'platform-default'
+  /** 仅 Judge 模式可见的脱敏 Prompt 快照；Partner/回放不下发原文。 */
+  promptPreview?: string
+}
+
+export type ReplayCompatibility = {
+  status: 'legacy-calculation'
+  recordedCalculationVersion: string
+  currentCalculationVersion: string
+  recordedContextStatus: 'not-recorded'
+  currentContextUsage: 'matching-only'
+  recordedValue: number
+  currentValue: number
+  userNotice: string
+}
+
+export type ReplayMeta = {
+  scenarioId: string
+  vendorTaskId: string
+  recordedAt: string
+  artifactIntegrity: 'vendor-original-unaltered'
+  compatibility?: ReplayCompatibility
+}
+
 /**
  * Frontend ↔ Real Raise backend contract.
  *
@@ -91,8 +145,10 @@ export type AgentTaskEvent =
       insight: string
       sources: SourceReference[]
       structuredInsight?: RealRaiseInsight
+      /** Every result must state who produced the narrative and the numbers. */
+      provenance: AnalysisExecutionProvenance
       /** 存在即表示本次结果来自真实任务存档回放，UI 必须显式标注。 */
-      replayMeta?: { scenarioId: string; vendorTaskId: string; recordedAt: string }
+      replayMeta?: ReplayMeta
       /** Server Live 的小型文本产物只保存在当前浏览器会话。 */
       artifacts?: Record<string, string>
     }
@@ -110,6 +166,8 @@ export type AnalysisModel = 'deepseek-v4-flash' | 'deepseek-v4-pro'
 export type StartAnalysisRequest = {
   input: ScenarioInput
   calculation: LivingCostResult
+  calculationVersion: typeof CALCULATION_VERSION
+  cityContext: AnalysisCityContext
   locale: 'zh-CN'
   includeInsight: boolean
   inputMode?: 'basic' | 'detailed'
@@ -119,7 +177,7 @@ export type StartAnalysisRequest = {
   /** 工资条模式的本地确定性摘要；仅 payslip 模式下随请求提交。 */
   payslipSummary?: PayslipSummary
   simulatedError?: boolean
-  /** 显式选择的分析模型；未指定时跟随平台默认。 */
+  /** 登录用户显式选择的分析模型；未指定时跟随 InfiniSynapse 平台默认。 */
   analysisModel?: AnalysisModel
 }
 
@@ -134,6 +192,7 @@ export type GetAnalysisResponse = StartAnalysisResponse & {
   insight?: string
   sources?: SourceReference[]
   structuredInsight?: RealRaiseInsight
+  provenance?: AnalysisExecutionProvenance
 }
 
 /** Own backend routes that Hajimi should integrate later. */

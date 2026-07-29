@@ -693,7 +693,7 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
   margin-top: 6px;
 }
 
-/* --- 用户自带 API Key（BYOK）面板 --- */
+/* --- 评委认证与服务端任务状态 --- */
 .api-key-panel {
   margin: 0 0 14px;
   padding: 12px 14px;
@@ -731,6 +731,35 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
 .api-key-model-select:focus-visible {
   outline: 2px solid var(--red);
   outline-offset: 2px;
+}
+.analysis-model-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(251, 248, 243, .9);
+  flex-wrap: wrap;
+}
+.analysis-model-control > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.analysis-model-control strong {
+  font-size: 11px;
+  color: var(--ink);
+}
+.analysis-model-control > div span {
+  font-size: 10px;
+  color: var(--muted);
+}
+.analysis-model-control .api-key-model-select:disabled {
+  cursor: not-allowed;
+  opacity: .6;
 }
 .api-key-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .api-key-title { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--ink); }
@@ -845,6 +874,7 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
 .judge-access-exit { border-color: var(--line); background: transparent; color: var(--muted); }
 .judge-access-notice { margin: 8px 0 0 !important; color: var(--red) !important; font-size: 10px !important; }
 .judge-access-panel.is-unlocked .judge-access-notice { color: var(--green) !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* --- 真实任务存档回放标注 --- */
 .replay-banner {
@@ -856,6 +886,81 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
   color: var(--accent-blue);
   font-size: 11px;
   line-height: 1.6;
+}
+
+.replay-compatibility-warning {
+  border-color: rgba(245, 158, 11, .42);
+  background: rgba(245, 158, 11, .1);
+  color: var(--ink);
+}
+
+.replay-compatibility-warning strong {
+  color: #b45309;
+}
+.analysis-provenance-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(67, 122, 103, .3);
+  border-radius: 4px;
+  background: rgba(67, 122, 103, .07);
+  color: #2f6552;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.analysis-provenance-banner svg { flex: none; margin-top: 2px; }
+.analysis-provenance-banner strong,
+.analysis-provenance-banner span { display: block; }
+.analysis-provenance-banner span { margin-top: 2px; color: #52665e; }
+.analysis-context-details {
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .45);
+}
+.analysis-context-details > summary,
+.analysis-prompt-preview-details > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  user-select: none;
+}
+.analysis-context-details > summary:hover,
+.analysis-prompt-preview-details > summary:hover { color: var(--ink); }
+.analysis-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+  padding: 0 10px 8px;
+}
+.analysis-context-grid > div { min-width: 0; }
+.analysis-context-grid span,
+.analysis-context-grid strong { display: block; }
+.analysis-context-grid span { color: var(--muted); font-size: 10px; }
+.analysis-context-grid strong { margin-top: 2px; color: var(--ink); font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+.analysis-context-boundary {
+  margin: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.analysis-prompt-preview-details { border-top: 1px solid var(--line); }
+.analysis-prompt-preview {
+  max-height: 360px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  background: rgba(31, 41, 55, .04);
+  color: var(--ink);
+  font: 10px/1.5 "DM Mono", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .footer-actions { display: flex; align-items: center; gap: 8px; }
