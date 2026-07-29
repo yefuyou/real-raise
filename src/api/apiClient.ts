@@ -24,6 +24,15 @@ import {
   subscribeReplayTask,
 } from './replayClient'
 import { buildAnalysisManifest, buildEvidenceCsv } from './analysisArtifacts'
+import {
+  ServerAnalysisUnavailable,
+  cancelServerTask,
+  getServerArtifact,
+  isServerAnalysisConfigured,
+  isServerTask,
+  startServerAnalysis,
+  subscribeServerTask,
+} from './serverAnalysisClient'
 
 export interface AnalysisClientOptions {
   useMock?: boolean
@@ -48,13 +57,14 @@ export const OFFICIAL_SOURCES: SourceReference[] = [
 ]
 
 /**
- * 三态模式：
- * - `live`：访客填了自己的 Key，浏览器直连平台，消耗访客自己的额度；
+ * 四态模式：
+ * - `server-live`：生产站经 Cloudflare Worker 调用平台，浏览器不接触项目 Key；
+ * - `live`：未配置 Worker 的开发/回滚版本可继续使用访客自己的 BYOK；
  * - `replay`：无 Key，但当前输入与某个真实任务存档一致，播放存档（零额度）；
  * - `mock`：无 Key 且无匹配存档，本地模拟状态机。
  * 三态在 UI 上显式标注，回放绝不冒充实时。
  */
-export type AnalysisMode = 'live' | 'replay' | 'mock'
+export type AnalysisMode = 'server-live' | 'live' | 'replay' | 'mock'
 
 export class RealRaiseApiClient {
   private useMock: boolean
@@ -69,13 +79,36 @@ export class RealRaiseApiClient {
   }
 
   /** 同步可知的模式（replay 需异步匹配存档，由 startAnalysis 决定）。 */
-  public getActiveMode(): 'live' | 'mock' {
+  public getActiveMode(): 'server-live' | 'live' | 'mock' {
     if (this.useMock) return 'mock'
+    if (isServerAnalysisConfigured()) return 'server-live'
     return loadApiKey() ? 'live' : 'mock'
   }
 
-  public async startAnalysis(request: StartAnalysisRequest): Promise<StartAnalysisResponse> {
+  public async startAnalysis(
+    request: StartAnalysisRequest,
+    serverMode: 'partner' | 'judge' = 'judge'
+  ): Promise<StartAnalysisResponse> {
     if (this.useMock) return this.mockStartAnalysis(request)
+
+    if (isServerAnalysisConfigured()) {
+      try {
+        const handle = await startServerAnalysis(request, serverMode)
+        return {
+          taskId: handle.taskId,
+          status: handle.status,
+          calculation: request.calculation,
+        }
+      } catch (error) {
+        if (!(error instanceof ServerAnalysisUnavailable) || !error.fallbackAllowed) throw error
+        // Worker 关闭、限流或达到每日保险丝时，优先回放真实存档。
+        const replayTaskId = await findReplayForRequest(request)
+        if (replayTaskId) {
+          return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
+        }
+        return this.mockStartAnalysis(request)
+      }
+    }
 
     if (loadApiKey()) {
       const handle = startByokAnalysis(request, loadApiKey(), OFFICIAL_SOURCES)
@@ -99,6 +132,7 @@ export class RealRaiseApiClient {
       mockRequests.delete(taskId)
       return true
     }
+    if (isServerTask(taskId)) return cancelServerTask(taskId)
     if (isReplayTask(taskId)) return cancelReplayTask(taskId)
     if (!isByokTask(taskId)) return false
     return cancelByokTask(taskId)
@@ -112,13 +146,14 @@ export class RealRaiseApiClient {
     if (this.useMock || taskId.startsWith('mock-task-')) {
       return this.simulateTaskEvents(taskId, request, onEvent)
     }
+    if (isServerTask(taskId)) return subscribeServerTask(taskId, onEvent)
     if (isReplayTask(taskId)) return subscribeReplayTask(taskId, onEvent)
     return subscribeByokTask(taskId, onEvent)
   }
 
   /** dev 工具：把一次真实任务导出为回放包 JSON；非真实任务返回 null。 */
   public exportReplay(taskId: string, scenarioId: string): string | null {
-    if (taskId.startsWith('mock-task-') || isReplayTask(taskId)) return null
+    if (taskId.startsWith('mock-task-') || isReplayTask(taskId) || isServerTask(taskId)) return null
     return exportByokReplay(taskId, scenarioId)
   }
 
@@ -127,6 +162,7 @@ export class RealRaiseApiClient {
    * previews，演示模式即时本地生成，三种模式下"下载凭证"按钮行为一致。
    */
   public getArtifactContent(taskId: string, fileName: string): string | null {
+    if (isServerTask(taskId)) return getServerArtifact(taskId, fileName)
     if (isReplayTask(taskId)) return getReplayArtifact(taskId, fileName)
     if (taskId.startsWith('mock-task-')) {
       const stored = mockRequests.get(taskId)

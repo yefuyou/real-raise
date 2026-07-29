@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   AlertCircle,
   AlertTriangle,
@@ -15,12 +15,18 @@ import {
   RefreshCw,
   Sparkles,
   StopCircle,
+  Sliders,
+  SlidersHorizontal,
   TrendingUp,
   Zap,
 } from 'lucide-react'
 import { apiClient, generateMockStructuredInsight } from '../api/apiClient'
 import { hasApiKey } from '../api/apiKeyStore'
+import { requestSignature } from '../api/requestSignature'
 import { ApiKeyPanel } from './ApiKeyPanel'
+import { JudgeAccessPanel } from './JudgeAccessPanel'
+import { PartnerSsoPanel } from './PartnerSsoPanel'
+import { authClient, formatFriendlyAuthErrorMessage, type AuthState } from '../api/authClient'
 import type {
   AgentTaskStatus,
   AnalysisModel,
@@ -31,9 +37,17 @@ import type {
 
 interface InsightSectionProps {
   requestPayload: StartAnalysisRequest
+  /** 阻止把未完成的工资条或未同步的详细拆解提交给 AI。 */
+  analysisValidationMessage?: string | null
   onOpenSources: (sources: SourceReference[]) => void
   remoteFeatureEnabled?: boolean
   onToggleRemoteFeature?: (enabled: boolean) => void
+}
+
+type AnalysisInputContext = {
+  signature: string
+  incomeInputMode: 'net' | 'payslip'
+  inputMode: 'basic' | 'detailed'
 }
 
 /** Helper to render inline **bold** text without dangerouslySetInnerHTML */
@@ -231,6 +245,7 @@ function AnalysisBlock({
 
 export const InsightSection: React.FC<InsightSectionProps> = ({
   requestPayload,
+  analysisValidationMessage = null,
   onOpenSources,
   remoteFeatureEnabled = true,
   onToggleRemoteFeature,
@@ -246,38 +261,146 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [simulatedError] = useState<boolean>(false)
-  const [unsubscribe, setUnsubscribe] = useState<(() => void) | null>(null)
-  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => hasApiKey())
+  const serverLiveConfigured = apiClient.getActiveMode() === 'server-live'
+  const [judgeUnlocked, setJudgeUnlocked] = useState<boolean>(false)
+  const [keyConfigured, setKeyConfigured] = useState<boolean>(() => (
+    serverLiveConfigured ? false : hasApiKey()
+  ))
   const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
+  const [userSelectedModel, setUserSelectedModel] = useState<AnalysisModel | ''>('')
+  const [judgeSelectedModel, setJudgeSelectedModel] = useState<AnalysisModel | ''>('')
+  const [authState, setAuthState] = useState<AuthState>(() => authClient.getState())
+  const [taskInputContext, setTaskInputContext] = useState<AnalysisInputContext | null>(null)
+  const [reportInputContext, setReportInputContext] = useState<AnalysisInputContext | null>(null)
+  const [isStarting, setIsStarting] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const lastServerModeRef = useRef<'partner' | 'judge'>('partner')
+
+  useEffect(() => {
+    const unsub = authClient.subscribe((st) => setAuthState(st))
+    void authClient.checkAuth()
+    return unsub
+  }, [])
   /** 非空 = 本次结果来自真实任务存档回放（必须显式标注，不冒充实时）。 */
   const [replayMeta, setReplayMeta] = useState<{ scenarioId: string; vendorTaskId: string; recordedAt: string } | null>(null)
   const [exportNotice, setExportNotice] = useState<string | null>(null)
+  const unsubscribeRef = useRef<(() => void) | null>(null)
+  const activeTaskIdRef = useRef<string | null>(null)
+  const runVersionRef = useRef(0)
+  const startInFlightRef = useRef(false)
+  const pendingCancellationRef = useRef<Promise<boolean> | null>(null)
+  const currentAnalysisModel = lastServerModeRef.current === 'partner'
+    ? userSelectedModel
+    : (judgeSelectedModel || selectedModel)
+  const currentRequestSignature = requestSignature({
+    ...requestPayload,
+    ...(currentAnalysisModel ? { analysisModel: currentAnalysisModel } : {}),
+  })
+
+  const taskUsesPreviousInputs = Boolean(
+    taskInputContext
+    && (status === 'queued' || status === 'running')
+    && taskInputContext.signature !== currentRequestSignature,
+  )
+  const reportUsesPreviousInputs = Boolean(
+    reportInputContext
+    && status === 'completed'
+    && reportInputContext.signature !== currentRequestSignature,
+  )
+  const describeInputContext = (context: AnalysisInputContext | null) => {
+    if (!context) return '提交时的输入'
+    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'}`
+  }
+  const cancelTaskAndTrack = (id: string): Promise<boolean> => {
+    const promise = apiClient.cancelAnalysis(id)
+    pendingCancellationRef.current = promise
+    void promise.then(
+      () => {
+        if (pendingCancellationRef.current === promise) pendingCancellationRef.current = null
+      },
+      () => {
+        if (pendingCancellationRef.current === promise) pendingCancellationRef.current = null
+      },
+    )
+    return promise
+  }
 
   useEffect(() => {
-    const savedTaskId = localStorage.getItem('real_raise_active_task')
-    if (savedTaskId) {
-      setTaskId(savedTaskId)
+    // 旧版本写过一个无法真正跨刷新恢复的活动任务 ID；启动时迁移清掉。
+    try {
+      localStorage.removeItem('real_raise_active_task')
+    } catch {
+      // 隐私模式下 localStorage 可能不可用。
     }
   }, [])
 
   useEffect(() => {
     return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
+      runVersionRef.current += 1
+      unsubscribeRef.current?.()
+      unsubscribeRef.current = null
+      const activeTaskId = activeTaskIdRef.current
+      activeTaskIdRef.current = null
+      if (activeTaskId) void cancelTaskAndTrack(activeTaskId)
     }
-  }, [unsubscribe])
+  }, [])
 
-  const handleStartInsight = async (forceSimulatedError?: boolean) => {
-    if (!remoteFeatureEnabled) return
+  useEffect(() => {
+    if (remoteFeatureEnabled) return
+    runVersionRef.current += 1
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    const activeTaskId = activeTaskIdRef.current
+    activeTaskIdRef.current = null
+    if (activeTaskId) void cancelTaskAndTrack(activeTaskId)
+    setStatus('idle')
+    setTaskId(null)
+    setStage('等待生成...')
+    setStageMessage('')
+    setPercent(0)
+    setInsightText(null)
+    setStructuredInsight(null)
+    setSources([])
+    setErrorMessage(null)
+    setDownloadError(null)
+    setReplayMeta(null)
+    setExportNotice(null)
+    setTaskInputContext(null)
+    setReportInputContext(null)
+  }, [remoteFeatureEnabled])
 
-    if (unsubscribe) {
-      unsubscribe()
-      setUnsubscribe(null)
+  const handleStartInsight = async (
+    serverMode?: 'partner' | 'judge',
+    forceSimulatedError?: boolean
+  ) => {
+    if (!remoteFeatureEnabled || analysisValidationMessage || startInFlightRef.current) return
+    startInFlightRef.current = true
+    setIsStarting(true)
+    const activeServerMode = serverMode ?? lastServerModeRef.current
+    lastServerModeRef.current = activeServerMode
+
+    const runVersion = runVersionRef.current + 1
+    runVersionRef.current = runVersion
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    const previousTaskId = activeTaskIdRef.current
+    activeTaskIdRef.current = null
+    if (pendingCancellationRef.current) {
+      await pendingCancellationRef.current.catch(() => undefined)
+    }
+    if (previousTaskId) {
+      await cancelTaskAndTrack(previousTaskId).catch(() => undefined)
+    }
+    if (runVersion !== runVersionRef.current) {
+      startInFlightRef.current = false
+      setIsStarting(false)
+      return
     }
 
     const isSimError = typeof forceSimulatedError === 'boolean' ? forceSimulatedError : simulatedError
+    const activeModel = activeServerMode === 'partner' ? userSelectedModel : (judgeSelectedModel || selectedModel)
 
+    setTaskId(null)
     setStatus('queued')
     setStage('正在创建 AI 生活解读任务...')
     setStageMessage('准备提交参数至分析服务...')
@@ -286,22 +409,35 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
     setDownloadError(null)
     setInsightText(null)
     setStructuredInsight(null)
+    setSources([])
     setReplayMeta(null)
     setExportNotice(null)
+    setReportInputContext(null)
 
     try {
       const payload: StartAnalysisRequest = {
         ...requestPayload,
         simulatedError: isSimError,
-        ...(selectedModel ? { analysisModel: selectedModel } : {}),
+        ...(activeModel ? { analysisModel: activeModel } : {}),
       }
-      const response = await apiClient.startAnalysis(payload)
+      const runInputContext: AnalysisInputContext = {
+        signature: requestSignature(payload),
+        incomeInputMode: payload.incomeInputMode ?? 'net',
+        inputMode: payload.inputMode ?? 'basic',
+      }
+      setTaskInputContext(runInputContext)
+      const response = await apiClient.startAnalysis(payload, activeServerMode)
       const newTaskId = response.taskId
+      if (runVersion !== runVersionRef.current) {
+        await apiClient.cancelAnalysis(newTaskId)
+        return
+      }
+      activeTaskIdRef.current = newTaskId
       setTaskId(newTaskId)
-      localStorage.setItem('real_raise_active_task', newTaskId)
       setStatus(response.status)
 
       const cleanup = apiClient.subscribeTaskEvents(newTaskId, payload, (evt) => {
+        if (runVersion !== runVersionRef.current) return
         if (evt.type === 'started') {
           setStatus('running')
           setStage('已连接分析引擎')
@@ -316,38 +452,66 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         } else if (evt.type === 'insight') {
           setInsightText(evt.text)
         } else if (evt.type === 'completed') {
+          activeTaskIdRef.current = null
           setStatus('completed')
           setPercent(100)
           setInsightText(evt.insight)
           setSources(evt.sources)
           setReplayMeta(evt.replayMeta ?? null)
-          const struct = evt.structuredInsight || generateMockStructuredInsight(requestPayload)
+          const struct = evt.structuredInsight || generateMockStructuredInsight(payload)
           setStructuredInsight(struct)
           setStage('分析完成')
+          setReportInputContext(runInputContext)
+          setTaskInputContext(null)
         } else if (evt.type === 'failed') {
+          activeTaskIdRef.current = null
           setStatus('failed')
-          setErrorMessage(evt.message || '解读生成中断，请稍后重试。')
+          setErrorMessage(formatFriendlyAuthErrorMessage(evt.code, evt.message))
+          setTaskInputContext(null)
         }
       })
 
-      setUnsubscribe(() => cleanup)
+      if (runVersion === runVersionRef.current) unsubscribeRef.current = cleanup
+      else cleanup()
     } catch (err: any) {
+      if (runVersion !== runVersionRef.current) return
+      activeTaskIdRef.current = null
+      if (serverLiveConfigured) {
+        setJudgeUnlocked(false)
+        setKeyConfigured(false)
+      }
       setStatus('failed')
-      setErrorMessage(err.message || '连接服务器异常，无法创建分析任务。')
+      setErrorMessage(formatFriendlyAuthErrorMessage(err.code || err.name, err.message))
+      setTaskInputContext(null)
+    } finally {
+      startInFlightRef.current = false
+      setIsStarting(false)
     }
   }
 
   const handleCancel = async () => {
-    if (unsubscribe) {
-      unsubscribe()
-      setUnsubscribe(null)
-    }
-    if (taskId) {
-      await apiClient.cancelAnalysis(taskId)
-    }
+    if (isCancelling) return
+    runVersionRef.current += 1
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+    const activeTaskId = activeTaskIdRef.current ?? taskId
+    activeTaskIdRef.current = null
+    setIsCancelling(true)
+    setTaskId(null)
     setStatus('cancelled')
     setStage('任务已取消')
+    setStageMessage('')
     setPercent(0)
+    setTaskInputContext(null)
+    if (activeTaskId) {
+      try {
+        await cancelTaskAndTrack(activeTaskId)
+      } finally {
+        setIsCancelling(false)
+      }
+    } else {
+      setIsCancelling(false)
+    }
   }
 
   const handleDownloadArtifact = (fileName: string) => {
@@ -426,12 +590,37 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           </label>
 
           {remoteFeatureEnabled && (status === 'queued' || status === 'running') && (
-            <button className="btn-cancel-task" onClick={handleCancel} type="button">
-              <StopCircle size={14} /> 取消任务
+            <button className="btn-cancel-task" onClick={handleCancel} type="button" disabled={isCancelling}>
+              <StopCircle size={14} /> {isCancelling ? '正在取消…' : '取消任务'}
             </button>
           )}
         </div>
       </div>
+
+      {taskUsesPreviousInputs && (
+        <div className="analysis-stale-notice" role="status">
+          <AlertTriangle size={15} />
+          <span>
+            左侧输入已变化；当前任务仍按“{describeInputContext(taskInputContext)}”提交时的数据继续执行，
+            不会自动新建任务。需要停止时请点击右上角“取消任务”。
+          </span>
+        </div>
+      )}
+      {reportUsesPreviousInputs && (
+        <div className="analysis-stale-notice completed-stale-notice" role="status">
+          <AlertTriangle size={15} />
+          <span>
+            当前报告基于“{describeInputContext(reportInputContext)}”提交时的数据；左侧已有新输入。
+            确认左侧结果后，点击“按最新输入重新分析”才会发起新任务。
+          </span>
+        </div>
+      )}
+      {analysisValidationMessage && (
+        <div className="analysis-validation-note" role="alert">
+          <AlertTriangle size={15} />
+          <span>{analysisValidationMessage}</span>
+        </div>
+      )}
 
       {!remoteFeatureEnabled ? (
         <div className="insight-body idle-state">
@@ -449,14 +638,121 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
             <p>
               结合官方 CPI 数据与您的收支输入，生成定制化 AI 生活解读报告。
             </p>
-            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-            <button className="btn-generate-insight" onClick={() => handleStartInsight()} type="button">
-              <Sparkles size={16} /> {keyConfigured ? '生成 AI 生活解读' : '生成解读'}
-            </button>
+
+            {/* --- InfiniSynapse SSO 用户模式主区域 --- */}
+            <div className="analysis-mode-section partner-user-section">
+              <PartnerSsoPanel />
+              {authState.authenticated && authState.canRunAnalysis !== false && (
+                <div className="user-mode-controls">
+                  <div className="mode-identity-tag">
+                    <span className="identity-badge user-badge">👤 当前模式：使用我的 InfiniSynapse 账号（消耗个人额度）</span>
+                  </div>
+                  <label className="api-key-model-label" htmlFor="user-analysis-model-select">
+                    用户模式模型选择：
+                    <select
+                      id="user-analysis-model-select"
+                      className="api-key-model-select"
+                      value={userSelectedModel}
+                      onChange={(event) => {
+                        const model = event.target.value as AnalysisModel | ''
+                        setUserSelectedModel(model)
+                      }}
+                    >
+                      <option value="">跟随平台默认</option>
+                      <option value="deepseek-v4-flash">Flash 省额度</option>
+                      <option value="deepseek-v4-pro">Pro 高质量</option>
+                    </select>
+                  </label>
+                  <button
+                    className="btn-generate-insight btn-user-mode"
+                    onClick={() => handleStartInsight('partner')}
+                    disabled={isStarting || Boolean(analysisValidationMessage)}
+                    type="button"
+                  >
+                    <Sparkles size={16} /> 使用我的 InfiniSynapse 账号生成 AI 深度解读
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* --- 高级 / 开发者设置 / 评委模式折叠区域 --- */}
+            <details className="developer-byok-details">
+              <summary className="developer-byok-summary">
+                <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
+              </summary>
+              <div className="developer-byok-content">
+                {!serverLiveConfigured && (
+                  <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+                )}
+                {serverLiveConfigured && (
+                  <div className="judge-mode-controls">
+                    <JudgeAccessPanel
+                      unlocked={judgeUnlocked}
+                      onChange={(unlocked) => {
+                        setJudgeUnlocked(unlocked)
+                        setKeyConfigured(unlocked)
+                      }}
+                    />
+                    {judgeUnlocked && (
+                      <div className="judge-active-box">
+                        <div className="mode-identity-tag">
+                          <span className="identity-badge judge-badge">⚖️ 当前模式：以评委身份发起（使用服务端评委 Key）</span>
+                        </div>
+                        <label className="api-key-model-label" htmlFor="judge-analysis-model-select">
+                          评委模式模型选择：
+                          <select
+                            id="judge-analysis-model-select"
+                            className="api-key-model-select"
+                            value={judgeSelectedModel}
+                            onChange={(event) => {
+                              const model = event.target.value as AnalysisModel | ''
+                              setJudgeSelectedModel(model)
+                            }}
+                          >
+                            <option value="">跟随平台默认</option>
+                            <option value="deepseek-v4-flash">Flash 省额度</option>
+                            <option value="deepseek-v4-pro">Pro 高质量</option>
+                          </select>
+                        </label>
+                        <button
+                          className="btn-generate-insight btn-judge-mode"
+                          onClick={() => handleStartInsight('judge')}
+                          disabled={isStarting || Boolean(analysisValidationMessage)}
+                          type="button"
+                        >
+                          <Zap size={16} /> 以评委身份发起解读 (评委密钥模式)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </details>
+
+            {/* --- 兜底按钮：未登录且未解锁评委模式时 --- */}
+            {(!authState.authenticated || authState.canRunAnalysis === false) && !judgeUnlocked && (
+              <button
+                className="btn-generate-insight"
+                onClick={() => handleStartInsight('partner')}
+                disabled={isStarting || Boolean(analysisValidationMessage)}
+                type="button"
+              >
+                <Sparkles size={16} /> {serverLiveConfigured ? '生成 AI 深度解读报告' : keyConfigured ? '生成 AI 生活解读' : '生成解读'}
+              </button>
+            )}
+
             <span className="quota-hint">
-              {keyConfigured
+              {serverLiveConfigured
+                ? judgeUnlocked && authState.authenticated
+                  ? '已登录 InfiniSynapse；请按页面按钮选择本次生成身份。'
+                  : judgeUnlocked
+                  ? '评委模式已解锁：由 Cloudflare Worker 服务端调用项目 Key，浏览器不接触密钥'
+                  : authState.authenticated
+                  ? 'InfiniSynapse 账号已连接：使用您的平台积分在服务端调用 AI 分析'
+                  : '支持 InfiniSynapse Partner SSO 登录 / 回放存档 / 本地 Mock 演示'
+                : keyConfigured
                 ? '由你的 Key 直接调用分析平台，用量计入你自己的账号'
-                : '未填 Key：预设案例优先播放真实任务的存档回放（可核验、零额度），其余输入用本地演示数据'}
+                : '优先使用 Partner SSO / 回放存档，无 Key 也可使用本地演示 Mock'}
             </span>
           </div>
         </div>
@@ -503,7 +799,9 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           {replayMeta && (
             <p className="replay-banner">
               真实任务存档回放 · 任务 ID {replayMeta.vendorTaskId} · 录制于 {replayMeta.recordedAt.slice(0, 10)} ·
-              评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。
+              {serverLiveConfigured
+                ? '评委可在分析平台任务后台核验；实时服务恢复后可再次生成。'
+                : '评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。'}
             </p>
           )}
 
@@ -714,18 +1012,25 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           )}
 
           {/* 看完演示后想换成自己的 Key 重跑，入口留在结果下方。 */}
-          {!keyConfigured && <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />}
+          {!serverLiveConfigured && !keyConfigured && (
+            <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+          )}
 
           <div className="insight-action-footer">
             <span className="footnote-text">数据来源：权威公开统计数据库 & 本地精准算表</span>
             <div className="footer-actions">
-              {import.meta.env.DEV && keyConfigured && !replayMeta && (
+              {import.meta.env.DEV && !serverLiveConfigured && keyConfigured && !replayMeta && (
                 <button className="btn-export-replay" onClick={handleExportReplay} type="button">
                   <Download size={13} /> 导出回放包（dev）
                 </button>
               )}
-              <button className="btn-reanalyze" onClick={() => handleStartInsight()} type="button">
-                <RefreshCw size={13} /> 重新分析
+              <button
+                className="btn-reanalyze"
+                onClick={() => handleStartInsight()}
+                disabled={isStarting || Boolean(analysisValidationMessage)}
+                type="button"
+              >
+                <RefreshCw size={13} /> {reportUsesPreviousInputs ? '按最新输入重新分析' : '重新分析'}
               </button>
             </div>
           </div>
@@ -740,17 +1045,64 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               <p>{errorMessage}</p>
             </div>
           </div>
-          {/* Key 无效时失败信息在这里出现，改 Key 的入口必须也在这里。 */}
-          <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-          <button className="btn-retry" onClick={() => handleStartInsight(false)} type="button">
+          <PartnerSsoPanel />
+          <details className="developer-byok-details">
+            <summary className="developer-byok-summary">
+              <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
+            </summary>
+            <div className="developer-byok-content">
+              {!serverLiveConfigured && (
+                <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+              )}
+              {serverLiveConfigured && !judgeUnlocked && (
+                <JudgeAccessPanel
+                  unlocked={judgeUnlocked}
+                  onChange={(unlocked) => {
+                    setJudgeUnlocked(unlocked)
+                    setKeyConfigured(unlocked)
+                  }}
+                />
+              )}
+            </div>
+          </details>
+          <button
+            className="btn-retry"
+            onClick={() => handleStartInsight(undefined, false)}
+            disabled={isStarting || Boolean(analysisValidationMessage)}
+            type="button"
+          >
             <RefreshCw size={14} /> 重新尝试
           </button>
         </div>
       ) : status === 'cancelled' ? (
         <div className="insight-body cancelled-state">
           <p className="cancelled-note">任务已取消。您的本地输入与精准计算数字已被完整保留。</p>
-          <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
-          <button className="btn-restart" onClick={() => handleStartInsight()} type="button">
+          <PartnerSsoPanel />
+          <details className="developer-byok-details">
+            <summary className="developer-byok-summary">
+              <Sliders size={13} /> 高级 / 开发者设置：自带 API Key (BYOK) / 评委模式
+            </summary>
+            <div className="developer-byok-content">
+              {!serverLiveConfigured && (
+                <ApiKeyPanel onChange={setKeyConfigured} selectedModel={selectedModel} onModelChange={setSelectedModel} />
+              )}
+              {serverLiveConfigured && !judgeUnlocked && (
+                <JudgeAccessPanel
+                  unlocked={judgeUnlocked}
+                  onChange={(unlocked) => {
+                    setJudgeUnlocked(unlocked)
+                    setKeyConfigured(unlocked)
+                  }}
+                />
+              )}
+            </div>
+          </details>
+          <button
+            className="btn-restart"
+            onClick={() => handleStartInsight()}
+            disabled={isStarting || Boolean(analysisValidationMessage)}
+            type="button"
+          >
             <Sparkles size={14} /> 重新生成解读
           </button>
         </div>

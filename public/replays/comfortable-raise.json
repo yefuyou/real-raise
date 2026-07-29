@@ -3,7 +3,7 @@
   "scenarioId": "comfortable-raise",
   "vendorTaskId": "90c66681-eba2-4feb-816d-90ec416a2122",
   "recordedAt": "2026-07-26T13:38:45.226Z",
-  "signature": "f4c0da5635f36ad7",
+  "signature": "0ec7fd174afe9fc0",
   "request": {
     "input": {
       "currentIncome": 11000,
@@ -23,7 +23,7 @@
       "annualRemainderChange": 22093.864679196373,
       "incomeGrowthRate": 0.18181818181818188,
       "totalSpendGrowthRate": 0.0226920871524241,
-      "realPurchasingPowerRate": 0.1555953122790137,
+      "realPurchasingPowerRate": 0.16737776272118465,
       "rentIncrease": 100,
       "raiseIncrease": 2000,
       "raiseConsumedByRentRate": 0.05,

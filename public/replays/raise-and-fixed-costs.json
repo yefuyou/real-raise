@@ -3,7 +3,7 @@
   "scenarioId": "raise-and-fixed-costs",
   "vendorTaskId": "a2083df0-0792-4b1e-8d04-03d8cc0d5028",
   "recordedAt": "2026-07-26T13:13:56.632Z",
-  "signature": "113fd9519b5a926c",
+  "signature": "e2f1214dc22dea8c",
   "request": {
     "input": {
       "currentIncome": 9500,
@@ -23,7 +23,7 @@
       "annualRemainderChange": 16144.302916396642,
       "incomeGrowthRate": 0.3157894736842106,
       "totalSpendGrowthRate": 0.2545602190205558,
-      "realPurchasingPowerRate": 0.04880535325076463,
+      "realPurchasingPowerRate": 0.14161669224909335,
       "rentIncrease": 1600,
       "raiseIncrease": 3000,
       "raiseConsumedByRentRate": 0.5333333333333333,

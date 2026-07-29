@@ -39,6 +39,7 @@ import {
   type DetailedSpendBreakdown,
   type SourceReference,
 } from './api/realRaiseContract'
+import { isServerAnalysisConfigured } from './api/serverAnalysisClient'
 
 const initialInput = DEMO_SCENARIOS[0].input
 
@@ -77,7 +78,7 @@ function App() {
   const [payslip, setPayslip] = useState<PayslipInput>(EMPTY_PAYSLIP)
   const [detailedBreakdown, setDetailedBreakdown] = useState<DetailedSpendBreakdown>(initialBreakdown)
   const [isDirty, setIsDirty] = useState(false)
-  const [remoteFeatureEnabled, setRemoteFeatureEnabled] = useState(false)
+  const [remoteFeatureEnabled, setRemoteFeatureEnabled] = useState(true)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [activeSources, setActiveSources] = useState<SourceReference[]>([])
   const resultRef = useRef<HTMLElement>(null)
@@ -90,14 +91,43 @@ function App() {
     () => Object.values(detailedBreakdown).reduce((sum, item) => sum + item.nextAmount, 0),
     [detailedBreakdown],
   )
-  const result = useMemo(() => calculateLivingCost(input), [input])
+  /**
+   * 详细模式的六类拆解是主算表的事实源：编辑后立即把当前合计与
+   * 下阶段合计折算成主模型的 otherSpend / otherInflationRate。
+   * 不能等“一键同步”，否则右侧购买力会继续使用旧的日常支出。
+   */
+  const effectiveCalculationInput = useMemo<ScenarioInput>(() => {
+    if (inputMode !== 'detailed') return input
+    const weightedRate = detailedSumCurrent > 0
+      ? (detailedSumNext - detailedSumCurrent) / detailedSumCurrent
+      : 0
+    return {
+      ...input,
+      otherSpend: detailedSumCurrent,
+      otherInflationRate: weightedRate,
+    }
+  }, [input, inputMode, detailedSumCurrent, detailedSumNext])
+  const result = useMemo(
+    () => calculateLivingCost(
+      effectiveCalculationInput,
+      inputMode === 'detailed' ? detailedSumNext : undefined,
+    ),
+    [effectiveCalculationInput, inputMode, detailedSumNext],
+  )
   const payslipSummary = useMemo(() => computePayslip(payslip), [payslip])
   /** 切到工资条模式但两期税前都还是 0：此时所有派生数字都没有意义。 */
   const isPayslipUnfilled = incomeInputMode === 'payslip'
     && payslip.current.gross === 0
     && payslip.next.gross === 0
-  const isImproving = result.realPurchasingPowerRate > 0
-  const isFlat = result.realPurchasingPowerRate === 0
+  const isPayslipInvalid = incomeInputMode === 'payslip'
+    && (payslip.current.gross <= 0 || payslip.next.gross <= 0 || payslipSummary.hasNegativeNet)
+  const analysisValidationMessage = isPayslipInvalid
+    ? payslipSummary.hasNegativeNet
+      ? '工资条扣缴合计超过税前工资，请先核对扣缴金额。'
+      : '工资条模式需要先填好现在与下一阶段两期税前工资，才能生成有效解读。'
+    : null
+  const isImproving = result.monthlyRemainderChange > 0
+  const isFlat = result.monthlyRemainderChange === 0
   const resultTone = isFlat ? 'neutral' : isImproving ? 'positive' : 'negative'
 
   /** 工资条模式：两期“到手”由确定性公式算出后写回主计算链路。 */
@@ -137,6 +167,20 @@ function App() {
     setIsDirty(true)
   }
 
+  const handleDetailedBreakdownChange = (newBreakdown: DetailedSpendBreakdown) => {
+    const currentSum = Object.values(newBreakdown).reduce((sum, item) => sum + item.currentAmount, 0)
+    const nextSum = Object.values(newBreakdown).reduce((sum, item) => sum + item.nextAmount, 0)
+    const weightedRate = currentSum > 0 ? (nextSum - currentSum) / currentSum : 0
+    setDetailedBreakdown(newBreakdown)
+    // Keep the visible base fields and every downstream consumer in lockstep.
+    setInput((prev) => ({
+      ...prev,
+      otherSpend: currentSum,
+      otherInflationRate: weightedRate,
+    }))
+    setIsDirty(true)
+  }
+
   const applyScenario = (scenario: ScenarioInput) => {
     setInput(scenario)
     setDetailedBreakdown(createDetailedBreakdown(scenario.otherSpend))
@@ -151,6 +195,8 @@ function App() {
     setInputMode('basic')
     setIncomeInputMode('net')
     setPayslip(EMPTY_PAYSLIP)
+    setSelectedCityCode('340100')
+    setActiveBenchmarkTab('current')
     setIsDirty(false)
   }
 
@@ -261,17 +307,20 @@ function App() {
             </legend>
             <MoneyField id="other-spend" name="otherSpend" label="现在每月大约" value={input.otherSpend} onChange={(value) => updateField('otherSpend', value)} full />
             <label className="rate-field">
-              <span id="other-inflation-label">日常支出预计变化</span>
+                  <span id="other-inflation-label">
+                    日常支出预计变化{inputMode === 'detailed' ? '（由六类实时计算）' : ''}
+                  </span>
               <span className="rate-input-wrap">
                 <input
                   id="other-inflation"
                   name="otherInflationRate"
                   type="number"
-                  min="-50"
+                  min="-100"
                   max="100"
                   step="0.01"
                   value={(input.otherInflationRate * 100).toFixed(2)}
                   onChange={(event) => updateField('otherInflationRate', String(Number(event.target.value) / 100))}
+                  readOnly={inputMode === 'detailed'}
                   aria-labelledby="other-inflation-label"
                   aria-describedby="other-inflation-hint"
                   inputMode="decimal"
@@ -345,21 +394,21 @@ function App() {
           </div>
 
           <div className="headline-result" aria-live="polite" aria-atomic="true">
-            <span>{isFlat ? '真实购买力预计持平' : isImproving ? '真实购买力预计上升' : '真实购买力预计下降'}</span>
-            <strong>{formatRate(Math.abs(result.realPurchasingPowerRate))}</strong>
+            <span>{isFlat ? '真实购买力（每月结余）预计持平' : isImproving ? '真实购买力（每月结余）预计上升' : '真实购买力（每月结余）预计下降'}</span>
+            <strong>{formatSignedMoney(result.monthlyRemainderChange)}</strong>
             <p>
               {isFlat
-                ? '收入和生活支出的变化大致抵消，先把扣缴、固定支出与日常支出拆开看。'
+                ? '收入增加额刚好被住房与日常支出变化抵消；先看下面的加减链条。'
                 : isImproving
-                ? '涨薪跑赢了你的生活支出变化，这部分才是可以放心花掉的钱。'
-                : '名义工资虽然上涨，但生活支出涨得更快，先别急着把它当成真正的涨薪。'}
+                ? `按当前到手收入归一化，相当于 ${formatRate(Math.abs(result.realPurchasingPowerRate))}；最终以每月多留下的金额为准。`
+                : `按当前到手收入归一化，相当于减少 ${formatRate(Math.abs(result.realPurchasingPowerRate))}；最终以每月少留下的金额为准。`}
             </p>
           </div>
 
           {/* AI Insight Section (Moved to #2 right after main conclusion) */}
           <InsightSection
             requestPayload={{
-              input,
+              input: effectiveCalculationInput,
               calculation: result,
               locale: 'zh-CN',
               includeInsight: true,
@@ -368,6 +417,7 @@ function App() {
               incomeInputMode,
               payslipSummary: incomeInputMode === 'payslip' ? payslipSummary : undefined,
             }}
+            analysisValidationMessage={analysisValidationMessage}
             onOpenSources={handleOpenSources}
             remoteFeatureEnabled={remoteFeatureEnabled}
             onToggleRemoteFeature={setRemoteFeatureEnabled}
@@ -583,8 +633,7 @@ function App() {
           breakdown={detailedBreakdown}
           otherSpend={input.otherSpend}
           onChangeBreakdown={(newBd) => {
-            setDetailedBreakdown(newBd)
-            setIsDirty(true)
+            handleDetailedBreakdownChange(newBd)
           }}
           onSyncTotalToSum={handleSyncTotalToSum}
         />
@@ -597,7 +646,10 @@ function App() {
       />
 
       <footer className="footer-note">
-        <span><ShieldCheck size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} /> REAL RAISE · 确定性计算底座 + 公开统计 Mock 解读</span>
+        <span>
+          <ShieldCheck size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} />
+          REAL RAISE · 确定性计算底座 + {isServerAnalysisConfigured() ? 'InfiniSynapse Server API 解读' : '公开统计演示解读'}
+        </span>
         <span>所有金额与计算结果基于个人输入，不构成专业财务建议。</span>
       </footer>
     </main>

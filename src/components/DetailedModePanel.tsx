@@ -139,7 +139,7 @@ export const DetailedModePanel: React.FC<DetailedModePanelProps> = ({
           <div>
             <h3>详细模式：六类日常支出拆解与 CPI 动态覆盖</h3>
             <p className="detailed-subtitle">
-              默认自动导入国家统计局 2025 分类 CPI 基准，支持按个人实际情况单独调试与覆盖预估
+              默认自动导入国家统计局 2026 年上半年分类 CPI 基准，支持按个人实际情况单独调试与覆盖预估
             </p>
           </div>
         </div>
@@ -266,6 +266,10 @@ export const DetailedModePanel: React.FC<DetailedModePanelProps> = ({
                 ({totalDelta >= 0 ? `+${totalDelta}` : totalDelta} 元)
               </span>
             </div>
+            <p className="detailed-formula-note">
+              计算链：当前六类合计 = 各类当前月支出相加；下阶段合计 = 各类下阶段预估相加；综合涨跌幅 =（下阶段合计 − 当前合计）÷ 当前合计。
+              点击同步后，主算表直接使用这两个合计，不会把支出重复相加。
+            </p>
             {!isMatch && (
               <p className="mismatch-warning-text">
                 分类当前合计 ({currentSum.toLocaleString('zh-CN')} 元) 与上方基本设置中的“其他月支出” ({otherSpend.toLocaleString('zh-CN')} 元) 存在 <strong>{Math.abs(currentSum - otherSpend).toLocaleString('zh-CN')} 元</strong> 偏差

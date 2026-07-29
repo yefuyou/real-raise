@@ -43,6 +43,7 @@ import {
   netIncome,
   type PayslipPeriodInput,
 } from '../domain/salarySlip'
+import { AuthClient, formatFriendlyAuthErrorMessage } from '../api/authClient'
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -358,6 +359,30 @@ async function main() {
     assert(nextSum === 3540, '分类下阶段预估合计必须精确对齐 3540')
   })
 
+  await runTest('6.4 详细模式极端下降必须实时进入购买力计算', () => {
+    const detailedBreakdown = {
+      food: { currentAmount: 6000, cpiRate: -0.9993333333333333, nextAmount: 4 },
+      utilities: { currentAmount: 0, cpiRate: 0.019, nextAmount: 0 },
+      transport: { currentAmount: 0, cpiRate: 0.018, nextAmount: 0 },
+      education: { currentAmount: 0, cpiRate: 0.012, nextAmount: 0 },
+      medical: { currentAmount: 0, cpiRate: 0.02, nextAmount: 0 },
+      other: { currentAmount: 0, cpiRate: 0.116, nextAmount: 0 },
+    }
+    const currentSum = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.currentAmount, 0)
+    const nextSum = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.nextAmount, 0)
+    const effectiveInput: ScenarioInput = {
+      currentIncome: 10000,
+      nextIncome: 12000,
+      currentRent: 2000,
+      nextRent: 2000,
+      otherSpend: currentSum,
+      otherInflationRate: (nextSum - currentSum) / currentSum,
+    }
+    const result = calculateLivingCost(effectiveInput)
+    assert(Math.abs(result.nextOtherSpend - 4) < 1e-9, '六类下阶段合计为 4 元时主算表必须使用 4 元')
+    assert(Math.abs(result.monthlyRemainderChange - 7996) < 1e-9, '六类支出下降 5996 元后月结余变化必须实时反映')
+  })
+
   // --- 测试组 7: CityBenchmark 契约 P0 断言 (合肥历史期、2026H1 回退与全国基准) ---
   await runTest('7.1 合肥 2024 (340100) 精确命中 A-history 且不标为 2026H1', () => {
     const res = resolveCityBenchmark('340100', 'foodAndTobaccoAlcohol', '2024')
@@ -435,6 +460,61 @@ async function main() {
     const netPayload: StartAnalysisRequest = { ...samplePayload, incomeInputMode: 'net' }
     const netStruct = generateMockStructuredInsight(netPayload)
     assert(netStruct.drivers.every((d) => d.id !== 'deductions'), '到手模式不得虚构扣缴驱动因素')
+  })
+
+  await runTest('8.5 工资条模式请求：工资条到手必须真实写入本地计算与 AI 载荷', () => {
+    const payslipSummary = computePayslip(EXAMPLE_PAYSLIP)
+    const payslipInput: ScenarioInput = {
+      ...sampleInput,
+      currentIncome: payslipSummary.currentNet,
+      nextIncome: payslipSummary.nextNet,
+    }
+    const payload: StartAnalysisRequest = {
+      ...samplePayload,
+      input: payslipInput,
+      calculation: calculateLivingCost(payslipInput),
+      incomeInputMode: 'payslip',
+      payslipSummary,
+    }
+    assert(payload.input.currentIncome === payslipSummary.currentNet, '工资条当前到手必须写入主计算输入')
+    assert(payload.input.nextIncome === payslipSummary.nextNet, '工资条下一期到手必须写入主计算输入')
+    assert(
+      JSON.stringify(calculateLivingCost(payload.input)) === JSON.stringify(payload.calculation),
+      '工资条请求中的 calculation 必须可由写回后的到手输入复算',
+    )
+    const struct = generateMockStructuredInsight(payload)
+    assert(struct.drivers.some((driver) => driver.id === 'deductions'), '工资条 AI 载荷必须包含扣缴驱动因素')
+  })
+
+  await runTest('8.6 详细拆解请求：六类明细必须进入载荷且签名与基础模式隔离', () => {
+    const detailedBreakdown = {
+      food: { currentAmount: 1200, cpiRate: 0.01, nextAmount: 1212 },
+      utilities: { currentAmount: 600, cpiRate: 0.02, nextAmount: 612 },
+      transport: { currentAmount: 500, cpiRate: 0.03, nextAmount: 515 },
+      education: { currentAmount: 400, cpiRate: 0.01, nextAmount: 404 },
+      medical: { currentAmount: 300, cpiRate: 0.02, nextAmount: 306 },
+      other: { currentAmount: 500, cpiRate: 0, nextAmount: 500 },
+    }
+    const detailedCurrentTotal = Object.values(detailedBreakdown).reduce((sum, item) => sum + item.currentAmount, 0)
+    const detailedInput: ScenarioInput = {
+      ...sampleInput,
+      otherSpend: detailedCurrentTotal,
+      otherInflationRate: (1212 + 612 + 515 + 404 + 306 + 500 - detailedCurrentTotal) / detailedCurrentTotal,
+    }
+    const payload: StartAnalysisRequest = {
+      ...samplePayload,
+      input: detailedInput,
+      calculation: calculateLivingCost(detailedInput),
+      inputMode: 'detailed',
+      detailedBreakdown,
+    }
+    const struct = generateMockStructuredInsight(payload)
+    assert(payload.detailedBreakdown !== undefined, '详细模式必须提交六类明细')
+    assert(struct.drivers.some((driver) => driver.id === 'food'), '详细模式 AI 载荷必须输出食品与餐饮驱动因素')
+    assert(
+      requestSignature(payload) !== requestSignature({ ...payload, inputMode: 'basic', detailedBreakdown: undefined }),
+      '详细模式与基础模式必须使用不同请求签名，避免错误命中缓存',
+    )
   })
 
   // --- 测试组 9: 工资条估算引擎 (docs/PAYSLIP_UX_SPEC.md §四) ---
@@ -607,6 +687,59 @@ async function main() {
     assert(flashSig !== defaultSig, 'Flash 模型签名必须与平台默认签名不同')
     assert(proSig !== defaultSig, 'Pro 模型签名必须与平台默认签名不同')
     assert(flashSig !== proSig, 'Flash 模型与 Pro 模型签名必须互不相同')
+  })
+
+  // --- 测试组 12: InfiniSynapse Partner SSO 体验层与错误翻译断言 ---
+  await runTest('12.1 AuthClient Mock 模式状态转换与订阅回调测试', async () => {
+    const client = new AuthClient({ useMock: true })
+    let lastState = client.getState()
+    const unsub = client.subscribe((st) => { lastState = st })
+
+    assert(lastState.authenticated === false, '初始状态应为未登录')
+    assert(lastState.user === null, '初始用户应为 null')
+
+    client.setMockUser({ id: '1001', name: '张三', nickname: '三哥', avatar: 'https://example.com/avatar.png' })
+    assert(lastState.authenticated === true, '设置 Mock 用户后必须为已登录')
+    assert(lastState.user?.nickname === '三哥', '昵称应优先使用 nickname')
+
+    await client.logout()
+    assert(lastState.authenticated === false, '退出登录后必须恢复为未登录')
+    assert(lastState.canRunAnalysis === false, '退出登录后 canRunAnalysis 必须重置为 false')
+    unsub()
+  })
+
+  await runTest('12.2 SSO 与分析错误码中文人话转换断言 (无原始堆栈/技术暴露)', () => {
+    const ssoNotConfigured = formatFriendlyAuthErrorMessage('SSO_NOT_CONFIGURED')
+    assert(ssoNotConfigured.includes('服务端尚未配置'), 'SSO_NOT_CONFIGURED 应提示服务端未配置')
+
+    const authRequired = formatFriendlyAuthErrorMessage('AUTH_REQUIRED')
+    assert(authRequired.includes('需要先登录'), 'AUTH_REQUIRED 应提示需要登录')
+
+    const keyUnavailable = formatFriendlyAuthErrorMessage('PARTNER_API_KEY_UNAVAILABLE')
+    assert(keyUnavailable.includes('Partner API Key 暂不可用'), 'PARTNER_API_KEY_UNAVAILABLE 应提示 Partner API Key 不可用')
+
+    const quotaExhausted = formatFriendlyAuthErrorMessage('INSUFFICIENT_QUOTA')
+    assert(quotaExhausted.includes('额度不足'), 'INSUFFICIENT_QUOTA 应提示额度不足')
+
+    const sessionExpired = formatFriendlyAuthErrorMessage('SESSION_EXPIRED')
+    assert(sessionExpired.includes('会话已过期'), 'SESSION_EXPIRED 应提示会话已过期')
+
+    const cancelled = formatFriendlyAuthErrorMessage('LOGIN_CANCELLED')
+    assert(cancelled.includes('登录授权已取消'), 'LOGIN_CANCELLED 应提示取消授权')
+  })
+
+  await runTest('12.3 AuthClient canRunAnalysis 标志与双模式配置测试', () => {
+    const client = new AuthClient({ useMock: true })
+    assert(client.getState().canRunAnalysis === false, '未登录初始 canRunAnalysis 必须为 false')
+
+    client.setMockUser({ id: '1002', name: '李四' }, true)
+    assert(client.getState().canRunAnalysis === true, 'canRunAnalysis 为 true 时允许调用个人模式')
+
+    client.setMockUser({ id: '1003', name: '王五' }, false)
+    assert(client.getState().canRunAnalysis === false, 'canRunAnalysis 为 false 时禁用个人模式调用')
+
+    client.setMockUser(null)
+    assert(client.getState().canRunAnalysis === false, 'setMockUser(null) 时 canRunAnalysis 必须重置为 false')
   })
 
   console.log(`\n================ ALL ${passedCount} AUTOMATED TESTS PASSED ================\n`)

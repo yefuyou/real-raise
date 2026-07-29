@@ -44,6 +44,8 @@ type VendorTask = {
   artifacts: Map<string, string>
   listeners: Set<(event: AgentTaskEvent) => void>
   controller: AbortController
+  /** 并发点击取消/重新生成时复用同一个取消流程，避免取消请求尚未送达就启动下一单。 */
+  cancelPromise: Promise<boolean> | null
   started: boolean
   /** 稳定序列化后的请求输入，缓存与去重的键。 */
   material: string
@@ -555,6 +557,7 @@ export function startByokAnalysis(request: StartAnalysisRequest, apiKey: string,
     artifacts: new Map(),
     listeners: new Set(),
     controller: new AbortController(),
+    cancelPromise: null,
     started: false,
     material,
     cachedResult: readCache(material),
@@ -609,23 +612,29 @@ export async function cancelByokTask(taskId: string): Promise<boolean> {
   if (!task) return false
   if (TERMINAL_STATUSES.includes(task.status)) return true
 
-  task.status = 'cancelled'
-  if (pendingByMaterial.get(task.material) === task.id) pendingByMaterial.delete(task.material)
-  try {
-    // 取消请求本身不能挂在已中止的 signal 上，否则会立刻失败。
-    await vendorRequest(
-      task,
-      INFINI_SYNAPSE_ROUTES.message,
-      { method: 'POST', body: JSON.stringify({ type: 'cancelTask', taskId: task.vendorTaskId }) },
-      { signal: null },
-    )
-  } catch {
-    // 平台侧取消失败也要中断本地流，用户看到的是任务已停止。
-  } finally {
-    task.controller.abort()
-    task.listeners.clear()
-  }
-  return true
+  if (task.cancelPromise) return task.cancelPromise
+
+  task.cancelPromise = (async () => {
+    task.status = 'cancelled'
+    if (pendingByMaterial.get(task.material) === task.id) pendingByMaterial.delete(task.material)
+    try {
+      // 取消请求本身不能挂在已中止的 signal 上，否则会立刻失败。
+      await vendorRequest(
+        task,
+        INFINI_SYNAPSE_ROUTES.message,
+        { method: 'POST', body: JSON.stringify({ type: 'cancelTask', taskId: task.vendorTaskId }) },
+        { signal: null },
+      )
+    } catch {
+      // 平台侧取消失败也要中断本地流，用户看到的是任务已停止。
+    } finally {
+      task.controller.abort()
+      task.listeners.clear()
+    }
+    return true
+  })()
+
+  return task.cancelPromise
 }
 
 export function getByokArtifact(taskId: string, fileName: string): string | null {

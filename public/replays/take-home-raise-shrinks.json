@@ -3,7 +3,7 @@
   "scenarioId": "take-home-raise-shrinks",
   "vendorTaskId": "6147a8d1-4bb9-416c-a664-ae54092fcc26",
   "recordedAt": "2026-07-26T13:00:35.610Z",
-  "signature": "c91f639cf338bd39",
+  "signature": "2c2d3aa514d76680",
   "request": {
     "input": {
       "currentIncome": 8000,
@@ -23,7 +23,7 @@
       "annualRemainderChange": -588.4461006696947,
       "incomeGrowthRate": 0.050000000000000044,
       "totalSpendGrowthRate": 0.08472399529354857,
-      "realPurchasingPowerRate": -0.032011825537381466,
+      "realPurchasingPowerRate": -0.006129646881975987,
       "rentIncrease": 400,
       "raiseIncrease": 400,
       "raiseConsumedByRentRate": 1,

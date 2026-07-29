@@ -4,7 +4,7 @@
 
 > 把税前工资、个税、社保公积金和生活支出拆开，看清真正到手的变化。
 
-`确定性计算 + AI 解释分离` · `32/32 自动化断言通过` · `TypeScript 严格检查` · `每个数字带官方来源`
+`确定性计算 + AI 解释分离` · `33/33 自动化断言通过` · `TypeScript 严格检查` · `每个数字带官方来源`
 
 <p align="center">
   <img src="./docs/assets/real-raise-hero.png" alt="Real Raise 将收入变化拆成扣缴、生活支出和可支配结余" width="100%" />
@@ -49,7 +49,8 @@ Real Raise 是一个面向中国职场人的个人收入诊断工具。它不只
 | 历史基准对比 | 2021–2025 官方收入、消费与 CPI（含"官方未公布"字段的如实展示） | ✅ |
 | AI 解读（Mock） | 本地模拟状态机，零额度、免登录体验完整流程 | ✅ |
 | AI 解读（真实链路） | SSE 进度流 + Task Workspace 三产物 + 同输入哈希缓存 + 401/429/5xx 可读降级 | ✅ 本地后端就绪 |
-| BYOK + 真实回放 | 纯静态部署：用户 Key 仅存自己浏览器；无 Key 可看真实任务存档回放（任务 ID 可在平台后台核验） | ✅ 三个预设 + 一个工资条回放已接入 |
+| 评委模式 + 真实回放 | 评委口令换取短时会话；项目 Key 仅在 Worker Secret；无权限时保留回放 | ✅ 三个预设 + 一个工资条回放已接入 |
+| Cloudflare Server API 适配层 | 服务端 Secret、评委短时会话、固定 Prompt、请求校验、60 秒限速、每日硬上限、并发保险丝 | 🟡 代码与本地校验完成，待 Cloudflare 授权和真实链路盖章 |
 
 ## 数据与模型原则
 
@@ -65,8 +66,9 @@ Real Raise 是一个面向中国职场人的个人收入诊断工具。它不只
 
 InfiniSynapse 是解释层，不是计算器：读取官方统计数据、解释结果为何升降、对比全国/城市基准、输出带年份与统计范围的引用。
 
-- **当前主形态**：纯静态 BYOK——体验者填自己的 Key（仅存浏览器 localStorage，本应用无服务器、不经手任何人的 Key）；无 Key 时，三个预设案例与一个工资条录制输入可播放**真实任务存档回放**，任务 ID 可在平台后台核验。
-- **备用形态**：保留 Node 后端适配 Server API，用于本地开发与 cpolar 现场备用链路；同输入哈希缓存与进行中去重保护额度，供应商异常映射为可读降级提示。
+- **当前已部署形态**：同一个 Cloudflare Worker 同时提供静态站与后端 API。体验者默认看到回放；只有评委输入口令后，才可发起真实分析。
+- **比赛准入补丁**：生产链路为“静态站 → 评委口令换取短时签名会话 → Worker → InfiniSynapse”。项目 Key 和评委口令只存在 Worker Secret；限流或达到每日硬上限时回放降级。
+- **本地备用形态**：保留 Node 后端用于开发与现场备用；同输入哈希缓存与进行中去重保护额度，供应商异常映射为可读降级提示。
 - 官方统计基准双轨：演示账号登记为**平台数据源 + 知识库**（含数据口径字典）；BYOK 实时任务采用 prompt 内联来源索引，保证任意账号可复现。
 
 ## 本地运行
@@ -75,14 +77,16 @@ InfiniSynapse 是解释层，不是计算器：读取官方统计数据、解释
 npm install
 npm run dev          # 前端（Mock 模式零额度）
 npm run server       # 可选：真实链路后端（.env.local 配 INFINISYNAPSE_API_KEY）
-npm run test         # 32 项自动化断言（含四个真实回放包完整性与命中校验）
+npm run test         # 33 项自动化断言（含四个真实回放包完整性与命中校验）
 npm run server:test  # 后端集成测试（含缓存与降级断言，不消耗额度）
+npm run worker:test  # Worker 输入边界与每日保险丝（不调用真实平台）
+npm run worker:check # Wrangler 干跑；需要 Node.js 22+
 npm run verify && npm run build
 ```
 
 ## 部署
 
-主路线：前端静态托管（EdgeOne Pages，大陆可达、免备案）；备用：`render.yaml` 单服务部署或本地后端 + 内网穿透。详见 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
+保留现有 `workers.dev` URL，由同一个 Worker 托管前端静态资源与 `/api/*`；不迁移前端、不购买域名。详见 [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)。
 
 ## 文档地图
 
