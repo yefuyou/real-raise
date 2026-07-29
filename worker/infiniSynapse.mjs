@@ -231,9 +231,31 @@ async function readArtifacts(vendorFetch, vendorTaskId) {
   return artifacts
 }
 
+export function sealAuthoritativeArtifacts(
+  artifacts,
+  { requestId, vendorTaskId, request, execution },
+) {
+  const sealed = { ...artifacts }
+  if (sealed['evidence.csv']) {
+    sealed['vendor-original-evidence.csv'] = sealed['evidence.csv']
+  }
+  if (sealed['analysis-manifest.json']) {
+    sealed['vendor-original-analysis-manifest.json'] = sealed['analysis-manifest.json']
+  }
+  sealed['evidence.csv'] = buildEvidenceCsv(request)
+  sealed['analysis-manifest.json'] = buildManifest({
+    requestId,
+    vendorTaskId,
+    request,
+    execution,
+  })
+  return sealed
+}
+
 export async function runInfiniSynapseAnalysis({
   requestId,
   request,
+  execution,
   apiKey,
   baseUrl,
   timeoutMs,
@@ -309,19 +331,28 @@ export async function runInfiniSynapseAnalysis({
     await parseJsonResponse(messageResponse)
 
     const finalText = await consumePromise
-    const artifacts = await readArtifacts(vendorFetch, vendorTaskId)
-    if (!artifacts['evidence.csv']) artifacts['evidence.csv'] = buildEvidenceCsv(request)
-    if (!artifacts['analysis-manifest.json']) {
-      artifacts['analysis-manifest.json'] = buildManifest({ requestId, vendorTaskId, request })
-    }
+    const vendorArtifacts = await readArtifacts(vendorFetch, vendorTaskId)
+    // The platform owns the narrative. Real Raise always owns the numeric
+    // evidence and execution manifest, so stale model-generated percentages
+    // can never become authoritative downloads.
+    const artifacts = sealAuthoritativeArtifacts(vendorArtifacts, {
+      requestId,
+      vendorTaskId,
+      request,
+      execution,
+    })
     const platformExplanation = artifacts['explanation.md']?.trim()
     const insight = platformExplanation || finalText || '分析已完成，但平台没有返回可预览的正文。'
     if (!artifacts['explanation.md']) artifacts['explanation.md'] = insight
     completed = true
+    const sources = request.cityContext.overallSource
+      && !OFFICIAL_SOURCES.some((source) => source.url === request.cityContext.overallSource.url)
+      ? [...OFFICIAL_SOURCES, request.cityContext.overallSource]
+      : OFFICIAL_SOURCES
 
     return {
       insight,
-      sources: OFFICIAL_SOURCES,
+      sources,
       artifacts,
       vendorTaskId,
     }

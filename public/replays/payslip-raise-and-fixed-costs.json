@@ -1,9 +1,9 @@
 {
-  "schemaVersion": "replay.v1",
+  "schemaVersion": "replay.v2",
   "scenarioId": "payslip-raise-and-fixed-costs",
   "vendorTaskId": "2a735498-f2ec-448f-b839-639ddce26c4f",
   "recordedAt": "2026-07-26T14:29:44.118Z",
-  "signature": "1cd9f8a35011d83e",
+  "signature": "ccf5c0933deadae4",
   "request": {
     "input": {
       "currentIncome": 7670,
@@ -47,7 +47,24 @@
       "raiseKeptRate": 0.712,
       "hasNegativeNet": false
     },
-    "simulatedError": false
+    "simulatedError": false,
+    "calculationVersion": "living-cost.v2",
+    "cityContext": {
+      "cityCode": "340100",
+      "cityName": "合肥",
+      "period": "2026H1",
+      "coverageTier": "C-fallback",
+      "cityCategoryCount": 0,
+      "fallbackCategoryCount": 9,
+      "overallCpiRate": 0.01,
+      "overallSource": {
+        "name": "国家统计局：2026 年上半年居民消费价格主要数据",
+        "year": 2026,
+        "scope": "全国｜全国居民消费价格总水平｜2026H1",
+        "url": "https://www.stats.gov.cn/sj/zxfbhjd/202607/t20260709_1964084.html"
+      },
+      "caveat": "合肥 2026H1 缺少该类别已核验值，已回退全国 2026H1 基准。"
+    }
   },
   "events": [
     {
@@ -3081,6 +3098,81 @@
         "Save.md": "---\nLoad Infinity SQL tool Save Documentation:\n<description>Export Infinity Session tables/views to external storage (databases, files). Use this tool when users need to: (1) Save or export query results to a database (JDBC, Elasticsearch, MongoDB); (2) Export data to files (Excel, CSV, Parquet, ORC, JSON, Delta Lake); (3) Overwrite or append data to an existing target. Common scenarios: \"save data to mysql\", \"export to excel\", \"append results to postgres table\", \"write data to elasticsearch\", \"export as csv file\".</description>\n<documentation>\n# SAVE Mode Reference\n\nThe SAVE statement exports Infinity Session tables/views to external storage.\n\n---\n\n## Save Modes\n\n| Mode | Behavior |\n|------|----------|\n| overwrite | Replaces all existing data in the target table/file. Use when you want a fresh copy. |\n| append | Adds new data to the existing target without deleting old data. Use for incremental updates. |\n\n---\n\n## Syntax\n\n```\nSAVE [overwrite|append] <src_table> AS <storage_type>.`<dest_path>`;\n```\n\n- `src_table`: The source table or temporary view name in the current Infinity Session.\n- `storage_type`: One of `jdbc`, `excel`, `csv`, `parquet`, `orc`, `json`, `delta`, `es`, `mongodb`.\n- `dest_path`: The destination path, format depends on the storage type (see below).\n\n---\n\n## Path Formats by Storage Type\n\n### JDBC Databases (mysql, postgres, clickhouse, etc.)\n\nPath format: `database_name.table_name`\n\n```sql\n-- Overwrite a JDBC table\nsave overwrite src_table as jdbc.`dest_db.dest_table`;\n\n-- Append to a JDBC table\nsave append src_table as jdbc.`dest_db.dest_table`;\n```\n\n### File-based Storage (excel, csv, parquet, orc, json)\n\nPath format: `database_name.file_name`\n- `file_name` must match `[a-zA-Z0-9_]+` (only letters, numbers, and underscores).\n\n```sql\n-- Save as Excel file\nsave overwrite src_table as excel.`dest_db.file_name`;\n\n-- Save as CSV file\nsave overwrite src_table as csv.`dest_db.file_name`;\n\n-- Save as Parquet file\nsave overwrite src_table as parquet.`dest_db.file_name`;\n\n-- Save as ORC file\nsave overwrite src_table as orc.`dest_db.file_name`;\n\n-- Save as JSON file\nsave overwrite src_table as json.`dest_db.file_name`;\n```\n\n### Delta Lake\n\nPath format: `database_name.table_name`\n\n```sql\nsave overwrite src_table as delta.`dest_db.table_name`;\nsave append src_table as delta.`dest_db.table_name`;\n```\n\n### Elasticsearch\n\nPath format: `database_name/index_name` (use `/` as separator)\n\n```sql\nsave overwrite src_table as es.`dest_db/dest_index`;\nsave append src_table as es.`dest_db/dest_index`;\n```\n\n### MongoDB\n\nPath format: `database_name/collection_name` (use `/` as separator)\n\n```sql\nsave overwrite src_table as mongodb.`dest_db/dest_collection`;\nsave append src_table as mongodb.`dest_db/dest_collection`;\n```\n\n---\n\n## Important Rules\n\n1. **Single statement only**: Each SAVE statement is executed individually. To save to multiple destinations, use separate calls.\n2. **Source must exist**: The `src_table` must be an existing registered table or a temporary view created in the current Infinity Session.\n3. **File name constraints**: For file-based storage, file names must contain only letters (a-z, A-Z), numbers (0-9), and underscores (_). No spaces, special characters, or non-ASCII characters allowed.\n4. **Default file database**: When the user asks to save/export data as a file without specifying a target file database, use `workspace_files` as the default destination.\n\n---\n\n## Recommended Workflow for AI\n\nWhen helping users save/export data, follow this approach:\n\n1. **Confirm source data** - Ensure the source table or view exists in the Infinity Session. If needed, query and verify the data first.\n\n2. **Determine destination** - Identify the target storage type and database/path. If the user doesn't specify a file database, use `workspace_files` as the default destination.\n\n3. **Choose save mode** - Use `overwrite` for fresh exports or `append` for incremental updates. If unclear, ask the user.\n\n4. **Verify success** - After saving, confirm the operation completed successfully.\n</documentation>\n",
         "evidence.csv": "item,value,source_type,source_detail\ncurrent_income,7670,user_input,现在的月到手收入\nnext_income,8382,user_input,下一阶段预计月到手收入\ncurrent_rent,2600,user_input,现在的月住房支出\nnext_rent,4200,user_input,下一阶段预计月住房支出\nother_spend,3900,user_input,现在的月日常生活支出\nother_inflation_rate,0.014010621444516454,derived_estimate,2026H1 CPI 与 2025 城镇消费结构派生\nincome_growth_rate,0.09282920469361144,local_calculation,本项目确定性计算\ntotal_spend_growth_rate,0.2545602190205558,local_calculation,本项目确定性计算\nreal_purchasing_power_rate,-0.1289145087457093,local_calculation,本项目确定性计算\nmonthly_remainder_change,-942.6414236336132,local_calculation,本项目确定性计算\nannual_remainder_change,-11311.697083603358,local_calculation,本项目确定性计算\nbreak_even_income,9324.641423633613,local_calculation,维持当前生活水平所需月到手收入\npayslip_gross_increase,1000,local_calculation,税前工资变化\npayslip_net_increase,712,local_calculation,到手收入变化\npayslip_deduction_change,288,local_calculation,扣缴合计变化\npayslip_future_account_change,200,local_calculation,养老+公积金进入未来账户\n国家统计局：2026 年上半年居民消费价格主要数据,2026,official_source,全国居民消费价格八大类 1—6 月同比涨跌幅｜https://www.stats.gov.cn/sj/zxfbhjd/202607/t20260709_1964084.html\n国家统计局：2025 年居民收入和消费支出情况,2025,official_source,全国及城镇居民收入、消费支出与消费结构｜https://www.stats.gov.cn/sj/zxfb/202601/t20260119_1962321.html"
       }
+    }
+  },
+  "recordedRequest": {
+    "input": {
+      "currentIncome": 7670,
+      "nextIncome": 8382,
+      "currentRent": 2600,
+      "nextRent": 4200,
+      "otherSpend": 3900,
+      "otherInflationRate": 0.014010621444516454
+    },
+    "calculation": {
+      "currentTotalSpend": 6500,
+      "nextOtherSpend": 3954.6414236336136,
+      "nextTotalSpend": 8154.641423633613,
+      "currentRemainder": 1170,
+      "nextRemainder": 227.35857636638684,
+      "monthlyRemainderChange": -942.6414236336132,
+      "annualRemainderChange": -11311.697083603358,
+      "incomeGrowthRate": 0.09282920469361144,
+      "totalSpendGrowthRate": 0.2545602190205558,
+      "realPurchasingPowerRate": -0.1289145087457093,
+      "rentIncrease": 1600,
+      "raiseIncrease": 712,
+      "raiseConsumedByRentRate": 2.247191011235955,
+      "breakEvenIncome": 9324.641423633613
+    },
+    "locale": "zh-CN",
+    "includeInsight": true,
+    "inputMode": "basic",
+    "incomeInputMode": "payslip",
+    "payslipSummary": {
+      "currentDeductionTotal": 2330,
+      "nextDeductionTotal": 2618,
+      "deductionChange": 288,
+      "currentNet": 7670,
+      "nextNet": 8382,
+      "grossIncrease": 1000,
+      "netIncrease": 712,
+      "taxChange": 63,
+      "socialAndFundChange": 225,
+      "futureAccountChange": 200,
+      "raiseKeptRate": 0.712,
+      "hasNegativeNet": false
+    },
+    "simulatedError": false
+  },
+  "provenance": {
+    "vendorArtifacts": {
+      "origin": "infinisynapse-task-workspace",
+      "integrity": "vendor-original-unaltered",
+      "vendorTaskId": "2a735498-f2ec-448f-b839-639ddce26c4f",
+      "recordedAt": "2026-07-26T14:29:44.118Z",
+      "sha256": {
+        "completed.insight": "940210a742afaee315fbdbad1c8cf93e62e9d08edd3ee3ecc66400de9c533794",
+        "explanation.md": "940210a742afaee315fbdbad1c8cf93e62e9d08edd3ee3ecc66400de9c533794",
+        "evidence.csv": "a242bc85e8f3b5c8f7894f94f74557b07a0090c75370f92054093d015d851516",
+        "analysis-manifest.json": "4b6a9fa67498b02f1a11eac1ad5003f8399cc702e11aaa8315ef2e2a4e5c1ce2"
+      }
+    },
+    "compatibility": {
+      "status": "legacy-calculation",
+      "migrationId": "2026-07-replay-calculation-provenance",
+      "recordedCalculationVersion": "income-growth/cost-growth-ratio.v1",
+      "currentCalculationVersion": "remainder-change/current-income.v2",
+      "changedFields": [
+        "calculation.realPurchasingPowerRate",
+        "calculationVersion",
+        "cityContext"
+      ],
+      "recordedValue": -0.1289145087457093,
+      "currentValue": -0.12289979447635113,
+      "userNotice": "此任务录制于旧版“收入增速与总支出增速之比”口径，且录制时没有城市上下文字段；供应商原始报告和三份工作区产物保持原样，仅用于核验历史任务。当前页面采用“月结余变化÷当前收入”和合肥 2026H1 匹配上下文，两者不可直接混用。",
+      "recordedContextStatus": "not-recorded",
+      "currentContextUsage": "matching-only"
     }
   }
 }

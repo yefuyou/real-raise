@@ -25,7 +25,7 @@ export const JudgeAccessPanel: React.FC<JudgeAccessPanelProps> = ({ unlocked, on
 
       {unlocked ? (
         <div className="judge-access-unlocked">
-          <p>评委模式已开启。项目 API Key 保存在服务端，浏览器不会接触或保存该 Key。</p>
+          <p>评委模式已开启。项目凭证保存在服务端，浏览器不会接触或保存。</p>
           <button type="button" className="judge-access-exit" onClick={handleLock}>
             <LogOut size={13} /> 退出评委模式
           </button>

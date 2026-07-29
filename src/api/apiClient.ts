@@ -7,15 +7,6 @@ import type {
 } from './realRaiseContract'
 import { OFFICIAL_2025_INCOME_BENCHMARKS } from '../data/official2025'
 import { OFFICIAL_2026_H1_CPI } from '../data/official2026'
-import { loadApiKey } from './apiKeyStore'
-import {
-  cancelByokTask,
-  exportByokReplay,
-  getByokArtifact,
-  isByokTask,
-  startByokAnalysis,
-  subscribeByokTask,
-} from './infiniSynapseBrowserClient'
 import {
   cancelReplayTask,
   findReplayForRequest,
@@ -56,21 +47,27 @@ export const OFFICIAL_SOURCES: SourceReference[] = [
   },
 ]
 
+function sourcesForRequest(request: StartAnalysisRequest): SourceReference[] {
+  const citySource = request.cityContext.overallSource
+  return citySource && !OFFICIAL_SOURCES.some((source) => source.url === citySource.url)
+    ? [...OFFICIAL_SOURCES, citySource]
+    : OFFICIAL_SOURCES
+}
+
 /**
- * 四态模式：
+ * 三态产品路径：
  * - `server-live`：生产站经 Cloudflare Worker 调用平台，浏览器不接触项目 Key；
- * - `live`：未配置 Worker 的开发/回滚版本可继续使用访客自己的 BYOK；
- * - `replay`：无 Key，但当前输入与某个真实任务存档一致，播放存档（零额度）；
- * - `mock`：无 Key 且无匹配存档，本地模拟状态机。
- * 三态在 UI 上显式标注，回放绝不冒充实时。
+ * - `replay`：未登录时，仅当当前输入与某个真实任务存档一致才播放存档；
+ * - `mock`：仅供自动化测试显式注入，不是用户入口。
+ * 回放绝不冒充实时；BYOK 不再是产品路径。
  */
-export type AnalysisMode = 'server-live' | 'live' | 'replay' | 'mock'
+export type AnalysisMode = 'server-live' | 'replay' | 'mock'
 
 export class RealRaiseApiClient {
   private useMock: boolean
 
   constructor(options: AnalysisClientOptions = {}) {
-    // 不强制 Mock 时，由浏览器里是否配置了访问者自己的 API Key 决定实际模式。
+    // 未连接 Worker 时只允许真实回放；Mock 仅由测试显式注入。
     this.useMock = options.useMock ?? false
   }
 
@@ -79,10 +76,10 @@ export class RealRaiseApiClient {
   }
 
   /** 同步可知的模式（replay 需异步匹配存档，由 startAnalysis 决定）。 */
-  public getActiveMode(): 'server-live' | 'live' | 'mock' {
+  public getActiveMode(): 'server-live' | 'replay' | 'mock' {
     if (this.useMock) return 'mock'
     if (isServerAnalysisConfigured()) return 'server-live'
-    return loadApiKey() ? 'live' : 'mock'
+    return 'replay'
   }
 
   public async startAnalysis(
@@ -106,25 +103,27 @@ export class RealRaiseApiClient {
         if (replayTaskId) {
           return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
         }
-        return this.mockStartAnalysis(request)
+        throw new ServerAnalysisUnavailable(
+          '当前输入暂无真实任务回放，请选择预设案例、登录后生成个人报告，或进入评委模式。',
+          'REPLAY_NOT_FOUND',
+          404,
+          false,
+        )
       }
     }
 
-    if (loadApiKey()) {
-      const handle = startByokAnalysis(request, loadApiKey(), OFFICIAL_SOURCES)
-      return {
-        taskId: handle.taskId,
-        status: handle.status,
-        calculation: request.calculation,
-      }
-    }
-
-    // 无 Key：先找真实任务存档（输入一致才播放），找不到再退演示模式。
+    // 未登录：只找真实任务存档（输入一致才播放），找不到就明确提示，
+    // 不再偷偷切入 BYOK 或本地 Mock。
     const replayTaskId = await findReplayForRequest(request)
     if (replayTaskId) {
       return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
     }
-    return this.mockStartAnalysis(request)
+    throw new ServerAnalysisUnavailable(
+      '当前输入暂无真实任务回放，请选择预设案例、登录后生成个人报告，或进入评委模式。',
+      'REPLAY_NOT_FOUND',
+      404,
+      false,
+    )
   }
 
   public async cancelAnalysis(taskId: string): Promise<boolean> {
@@ -134,8 +133,7 @@ export class RealRaiseApiClient {
     }
     if (isServerTask(taskId)) return cancelServerTask(taskId)
     if (isReplayTask(taskId)) return cancelReplayTask(taskId)
-    if (!isByokTask(taskId)) return false
-    return cancelByokTask(taskId)
+    return false
   }
 
   public subscribeTaskEvents(
@@ -148,13 +146,14 @@ export class RealRaiseApiClient {
     }
     if (isServerTask(taskId)) return subscribeServerTask(taskId, onEvent)
     if (isReplayTask(taskId)) return subscribeReplayTask(taskId, onEvent)
-    return subscribeByokTask(taskId, onEvent)
-  }
-
-  /** dev 工具：把一次真实任务导出为回放包 JSON；非真实任务返回 null。 */
-  public exportReplay(taskId: string, scenarioId: string): string | null {
-    if (taskId.startsWith('mock-task-') || isReplayTask(taskId) || isServerTask(taskId)) return null
-    return exportByokReplay(taskId, scenarioId)
+    onEvent({
+      type: 'failed',
+      taskId,
+      code: 'TASK_NOT_FOUND',
+      message: '任务不存在或当前页面没有可用的实时任务。',
+      retryable: true,
+    })
+    return () => undefined
   }
 
   /**
@@ -167,20 +166,21 @@ export class RealRaiseApiClient {
     if (taskId.startsWith('mock-task-')) {
       const stored = mockRequests.get(taskId)
       if (!stored) return null
-      if (fileName === 'evidence.csv') return buildEvidenceCsv(stored, OFFICIAL_SOURCES)
+      const sources = sourcesForRequest(stored)
+      if (fileName === 'evidence.csv') return buildEvidenceCsv(stored, sources)
       if (fileName === 'analysis-manifest.json') {
         return buildAnalysisManifest({
           taskId,
           vendorTaskId: null,
           request: stored,
-          sources: OFFICIAL_SOURCES,
+          sources,
           mode: 'mock',
         })
       }
       if (fileName === 'explanation.md') return buildMockExplanationMarkdown(taskId, stored)
       return null
     }
-    return getByokArtifact(taskId, fileName)
+    return null
   }
 
   private async mockStartAnalysis(request: StartAnalysisRequest): Promise<StartAnalysisResponse> {
@@ -206,6 +206,7 @@ export class RealRaiseApiClient {
   ): () => void {
     let cancelled = false
     const timers: number[] = []
+    const resultSources = sourcesForRequest(request)
     const push = (event: AgentTaskEvent, delayMs: number) => {
       const timer = globalThis.setTimeout(() => {
         if (!cancelled) onEvent(event)
@@ -261,8 +262,16 @@ export class RealRaiseApiClient {
       type: 'completed',
       taskId,
       insight: generateMockInsightText(request),
-      sources: OFFICIAL_SOURCES,
-      structuredInsight: generateMockStructuredInsight(request),
+      sources: resultSources,
+      structuredInsight: buildDeterministicStructuredInsight(request),
+      provenance: {
+        mode: 'mock',
+        narrativeSource: 'local-template',
+        structuredInsightSource: 'real-raise-deterministic',
+        calculationAuthority: 'local-deterministic',
+        calculationVersion: request.calculationVersion,
+        attribution: 'none',
+      },
     }, 3600)
 
     return () => {
@@ -307,6 +316,8 @@ function buildMockExplanationMarkdown(taskId: string, request: StartAnalysisRequ
     '',
     `- 任务 ID：${taskId}`,
     '- 生成方式：本地演示模式（未配置分析平台 API Key）',
+    `- 城市上下文：${request.cityContext.cityName}（${request.cityContext.cityCode}）· ${request.cityContext.period} · ${request.cityContext.coverageTier}`,
+    `- 确定性公式：${request.calculationVersion}`,
     '- 数据底座：本地确定性算表 + 2026 年上半年官方 CPI',
     '',
     '## 结论',
@@ -334,7 +345,11 @@ function buildMockExplanationMarkdown(taskId: string, request: StartAnalysisRequ
   ].join('\n')
 }
 
-export function generateMockStructuredInsight(request: StartAnalysisRequest) {
+/**
+ * Real Raise owns these cards. They are deterministic diagnostics derived
+ * from the authoritative request, never an InfiniSynapse model response.
+ */
+export function buildDeterministicStructuredInsight(request: StartAnalysisRequest) {
   const { input, calculation, inputMode, detailedBreakdown } = request
   const { raiseIncrease, rentIncrease, nextOtherSpend, monthlyRemainderChange } = calculation
   const otherDelta = Math.round(nextOtherSpend - input.otherSpend)
@@ -426,7 +441,7 @@ export function generateMockStructuredInsight(request: StartAnalysisRequest) {
   // 2025 Urban nominal disposable income growth = 4.3%
   // 2026H1 national CPI = 1.0%
   const urbanIncomeGrowthRate = 0.043
-  const overallCpiRate = 0.01
+  const overallCpiRate = request.cityContext.overallCpiRate
 
   const userIncomeGrowthRate = calculation.incomeGrowthRate
   const userCostGrowthRate = calculation.totalSpendGrowthRate
@@ -482,6 +497,7 @@ export function generateMockStructuredInsight(request: StartAnalysisRequest) {
   }
 
   const warnings = [
+    request.cityContext.caveat,
     '住房支出只是个人固定支出的一部分，不能用全国居住类指标替代某个家庭的实际支出；结果以用户输入为准。',
     '此解读由确定性数学算法与国家统计局公开数据生成，不代表第三方金融机构投资或借贷建议。',
   ]
@@ -495,16 +511,20 @@ export function generateMockStructuredInsight(request: StartAnalysisRequest) {
       userCostGrowthRate,
       urbanIncomeGrowthRate,
       overallCpiRate,
-      caveat: '个人收入结构、固定支出和消费结构与宏观平均存在差异，以实际输入为准。',
+      caveat: `${request.cityContext.cityName} ${request.cityContext.period}｜${request.cityContext.caveat} 个人收入结构、固定支出和消费结构仍以实际输入为准。`,
       sourceRefs: [
-        '国家统计局：2026 年上半年居民消费价格主要数据 (CPI 1—6 月平均 1.0%)',
+        request.cityContext.overallSource?.name
+          ?? '国家统计局：2026 年上半年居民消费价格主要数据',
         '国家统计局：2025 年居民收入和消费支出情况',
       ],
     },
     scenarios,
     trend,
     warnings,
-    sources: OFFICIAL_SOURCES,
+    sources: request.cityContext.overallSource
+      && !OFFICIAL_SOURCES.some((source) => source.url === request.cityContext.overallSource?.url)
+      ? [...OFFICIAL_SOURCES, request.cityContext.overallSource]
+      : OFFICIAL_SOURCES,
   }
 }
 
