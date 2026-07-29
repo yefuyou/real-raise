@@ -68,16 +68,14 @@ export function buildAnalysisManifest(options: {
   vendorTaskId: string | null
   request: StartAnalysisRequest
   sources: SourceReference[]
-  mode: 'byok' | 'mock' | 'replay'
+  mode: 'mock' | 'replay'
 }): string {
   return JSON.stringify(
     {
       schemaVersion: 'real-raise.analysis.v2',
       taskId: options.taskId,
       vendorTaskId: options.vendorTaskId,
-      generatedBy: options.mode === 'byok'
-        ? 'real-raise-browser-adapter'
-        : options.mode === 'replay'
+      generatedBy: options.mode === 'replay'
           ? 'real-raise-replay-current-calculation-adapter'
           : 'real-raise-local-demo',
       city: options.request.cityContext,

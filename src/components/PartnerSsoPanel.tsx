@@ -75,7 +75,7 @@ export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = ''
           </div>
 
           <p className="sso-description">
-            使用您自己的 InfiniSynapse 平台积分生成定制 AI 深度解读，密钥由服务端安全保管，浏览器端永远不暴露 Partner API Key。
+            使用您自己的 InfiniSynapse 平台积分生成定制 AI 深度解读，供应商凭证由服务端安全处理，浏览器不会接触。
           </p>
 
           <div className="sso-action-row">
@@ -89,7 +89,7 @@ export const PartnerSsoPanel: React.FC<PartnerSsoPanelProps> = ({ className = ''
           </div>
 
           <p className="sso-footer-hint">
-            <ShieldCheck size={12} /> 未登录状态下仍可继续使用本地确定性算表、存档回放与 Mock 演示。
+            <ShieldCheck size={12} /> 未登录时查看真实任务存档；登录后使用你的账号生成实时报告。
           </p>
         </div>
       )}

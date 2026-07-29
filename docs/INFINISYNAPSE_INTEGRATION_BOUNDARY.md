@@ -2,12 +2,12 @@
 
 ## 1. 系统隔离原则 (Isolation Principles)
 
-> 已提交的静态版本仍保留 BYOK（用户自带 Key）链路；当配置
-> `VITE_ANALYSIS_API_URL` 时，生产 live 链路改由 Cloudflare Worker 调用
-> InfiniSynapse，供应商 Key 只保存在 Worker Secret 中。
+> 当前产品不提供 BYOK（用户自带 Key）入口。生产链路由 Cloudflare Worker
+> 调用 InfiniSynapse，供应商 Key 只保存在 Worker Secret 中；未登录用户只播放
+> 真实任务回放。
 
-1. **密钥按运行形态隔离**：静态 BYOK 版本中，访客的 Key 只保存在其本人浏览器；Worker live 版本中，比赛 Key 只存在 Cloudflare Secret。两种形态都不得把 Key 写入 URL、日志、console、错误上报、仓库或构建产物。
-2. **直连仅限 BYOK 适配层**：浏览器端对供应商的调用统一收敛在 `src/api/infiniSynapseBrowserClient.ts`；UI 组件只使用 `apiClient` 暴露的三态接口（live / replay / mock），不得散落直连代码。
+1. **密钥只在服务端**：项目 Key 只存在 Cloudflare Secret，不得写入 URL、日志、console、错误上报、仓库或构建产物。
+2. **浏览器不直连供应商**：UI 只使用 `apiClient` 暴露的评委实时、Partner 实时和回放路径，不得散落供应商直连代码。
 3. **用户个人数据不上传**：除任务 Prompt 中内联的本地计算摘要外，用户工资条数字之外的任何原始文件、`.env`、任务日志一律不上传平台数据源。
 4. **服务端形态**：`worker/index.mjs` 是比赛准入修正的主服务端适配层；`server/realRaiseServer.mjs` 只保留为本地开发与自托管备用链路。两者都必须从服务端环境读取 Key。
 
@@ -37,7 +37,7 @@
   Origin、Partner/Judge 会话和一笔真实用户任务，历史部署成功不能代替本次验证。
 
 1. **零暗猜接口**：严禁在前端推测、虚构或写死未经 `realRaiseContract.ts` 明确定义的后端接口。
-2. **Graceful Fallback**：若服务端尚未完成真实 API 对接，前端在 `remoteFeatureEnabled = false` 或 `useMock = true` 模式下回退至确定性计算 + 本地基准 Mock 状态机，绝不引发网页崩溃。
+2. **Graceful Fallback**：若服务端暂不可用，前端只回退至带任务 ID 的真实回放；当前输入没有匹配存档时明确提示用户登录或选择预设案例，不进入 Mock 或 BYOK 用户模式。
 3. **城市基准不信任客户端**：浏览器提交城市选择和可见上下文，Worker
    必须与服务端可信目录逐字段核对；伪造的 CPI、来源 URL、覆盖层级或
    caveat 必须在创建平台任务前被拒绝。

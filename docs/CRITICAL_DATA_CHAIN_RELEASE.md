@@ -13,7 +13,7 @@
   → Real Raise 确定性计算
   → Worker 丢弃客户端计算并服务端重算
   → Worker 核验城市基准与公式版本
-  → Partner/Judge/BYOK 发起 InfiniSynapse 任务
+  → Partner/Judge 发起 InfiniSynapse 任务；未登录则播放 Replay
   → 平台只负责正文、排序、情景解释
   → Real Raise 重建 evidence/manifest
   → completed.provenance 明示任务来源和用户归因
@@ -24,7 +24,7 @@
 - 数字只有一个权威；
 - 城市选择真的进入分析，且全国回退不会冒充城市原值；
 - 平台正文、确定性卡片、实时/回放/Mock 不再混称；
-- Partner 用户级 Key、Judge 项目 Key 和浏览器 BYOK 的归因可区分；
+- Partner 用户级 Key、Judge 项目 Key 和回放无归因状态可区分；
 - 历史回放可核验，但旧公式不能污染当前下载凭证。
 
 ## 变更范围
@@ -127,7 +127,7 @@
 
 1. 保持现网不变，在预览或独立 Worker 环境部署同一提交。
 2. 用全国、北京、上海、深圳、合肥各跑一笔；确认城市值/回退状态和来源。
-3. 分别验证 Partner、Judge、Replay、Mock；BYOK 只在可控测试 Key 下验证。
+3. 分别验证 Partner、Judge 和 Replay；Mock 只在自动化测试中验证，不作为用户路径。
 4. 检查 360px、768px、桌面结果区和全部下载文件。
 5. 使用全新 Partner 账号：登录 → 创建真实任务 → SSE 完成 → 下载清单 →
    平台后台核对用户与任务归因。
@@ -151,7 +151,7 @@
 操作：
 
 1. 先将 `LIVE_ANALYSIS_ENABLED=false`，停止新真实调用，让前端进入已标注的
-   Replay/Mock，保护配额和用户。
+   Replay，保护配额和用户；Mock 只作为自动化测试态存在。
 2. 回滚前端与 Worker 到同一个上一版本提交，不能只回滚一侧。
 3. 若只出现回放包损坏，可回滚静态前端；不要改写或删除供应商原件。
 4. 若怀疑 Key 或会话泄露，轮换对应 Secret，并使现有会话失效。
