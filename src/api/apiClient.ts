@@ -14,7 +14,14 @@ import {
   isReplayTask,
   subscribeReplayTask,
 } from './replayClient'
-import { buildAnalysisManifest, buildEvidenceCsv } from './analysisArtifacts'
+import {
+  buildAnalysisManifest,
+  buildDriverRankingCsv,
+  buildEvidenceCsv,
+  buildScenarioMatrixCsv,
+  buildScenarioMatrixJson,
+  buildShareSummaryMarkdown,
+} from './analysisArtifacts'
 import {
   ServerAnalysisUnavailable,
   cancelServerTask,
@@ -177,6 +184,10 @@ export class RealRaiseApiClient {
           mode: 'mock',
         })
       }
+      if (fileName === 'driver-ranking.csv') return buildDriverRankingCsv(stored)
+      if (fileName === 'scenario-matrix.csv') return buildScenarioMatrixCsv(stored)
+      if (fileName === 'scenario-matrix.json') return buildScenarioMatrixJson(stored)
+      if (fileName === 'share-summary.md') return buildShareSummaryMarkdown(stored)
       if (fileName === 'explanation.md') return buildMockExplanationMarkdown(taskId, stored)
       return null
     }

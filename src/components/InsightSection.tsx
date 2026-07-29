@@ -733,7 +733,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                 供应商原件未改写（完整性已审计） ·
                 {serverLiveConfigured
                   ? '评委可在分析平台任务后台核验；实时服务恢复后可再次生成。'
-                  : '评委可在分析平台任务后台核验；填入你自己的 Key 可实时重跑。'}
+                  : '评委可在分析平台任务后台核验；登录 InfiniSynapse 后可实时重跑。'}
               </p>
               {replayMeta.compatibility && (
                 <p className="replay-banner replay-compatibility-warning" role="alert">
@@ -836,7 +836,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                         ? `${(structuredInsight.benchmark.overallCpiRate * 100).toFixed(1)}%`
                         : '—'}
                     </strong>
-                    <span className="bm-sub">2025 官方通胀大盘</span>
+                    <span className="bm-sub">{requestPayload.cityContext.period} 官方 CPI 基准</span>
                   </div>
                 </div>
 
@@ -940,7 +940,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
 任务ID: ${taskId || 'mock-task-1'}
 --------------------------------------------------
 - 状态: 已完成 (Completed)
-- 产物文件: explanation.md / evidence.csv / analysis-manifest.json
+- 产物文件: explanation.md / driver-ranking.csv / scenario-matrix.csv / share-summary.md / evidence.csv / analysis-manifest.json
 - 数据底座: 本地确定性算表 + 2026H1 官方 CPI
 - 权威原则: AI 解读不覆盖本地数字卡片金额
 `}</code></pre>
@@ -968,6 +968,27 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
                       onClick={() => handleDownloadArtifact('analysis-manifest.json')}
                     >
                       <Download size={13} /> 下载当前执行清单 (analysis-manifest.json)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('driver-ranking.csv')}
+                    >
+                      <Download size={13} /> 下载驱动因素排名 (driver-ranking.csv)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('scenario-matrix.csv')}
+                    >
+                      <Download size={13} /> 下载情景矩阵 (scenario-matrix.csv)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-artifact-dl secondary-dl"
+                      onClick={() => handleDownloadArtifact('share-summary.md')}
+                    >
+                      <Download size={13} /> 下载分享摘要 (share-summary.md)
                     </button>
                     {replayMeta && (
                       <>

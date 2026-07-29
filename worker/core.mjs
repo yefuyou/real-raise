@@ -246,6 +246,7 @@ export function buildDiagnosticPacket(request) {
     { id: 'daily-spend', label: '日常支出变化', monthlyImpact: -dailySpendDelta, authority: 'deterministic' },
   ]
   const driverSum = drivers.reduce((sum, driver) => sum + driver.monthlyImpact, 0)
+  const scenarioMatrix = buildScenarioMatrix(request)
   return {
     schemaVersion: 'real-raise.diagnostic-packet.v1',
     calculationVersion: request.calculationVersion,
@@ -265,6 +266,8 @@ export function buildDiagnosticPacket(request) {
       { id: 'daily-spend-stable', label: '下一阶段日常支出保持当前水平', annualRemainderDeltaVsBaseline: dailySpendDelta * 12 },
       { id: 'break-even-income', label: '维持当前月结余所需到手收入', requiredMonthlyIncome: request.calculation.breakEvenIncome },
     ],
+    driverRanking: buildDriverRanking(request),
+    scenarioMatrix,
     constraints: [
       '不得重新计算或修改任何金额。',
       '驱动项必须按 monthlyImpact 绝对值排序后解释。',
@@ -272,6 +275,118 @@ export function buildDiagnosticPacket(request) {
       '工资条扣缴只作到手收入形成过程说明，不与到手收入驱动重复相加。',
     ],
   }
+}
+
+function buildScenarioRow({ id, label, changes, input, calculation, rationale }) {
+  return {
+    id,
+    label,
+    changes,
+    rationale,
+    nextIncome: input.nextIncome,
+    nextRent: input.nextRent,
+    nextOtherSpend: calculation.nextOtherSpend,
+    monthlyRemainder: calculation.nextRemainder,
+    annualRemainder: calculation.nextRemainder * 12,
+    monthlyDeltaVsBaseline: calculation.monthlyRemainderChange,
+    annualDeltaVsBaseline: calculation.annualRemainderChange,
+    breakEvenIncome: calculation.breakEvenIncome,
+    calculationVersion: CALCULATION_VERSION,
+    provenance: 'worker-deterministic',
+  }
+}
+
+/**
+ * Deterministic scenario matrix. The Agent may compare and explain these rows,
+ * but it must never invent a row or recalculate one from prose.
+ */
+export function buildScenarioMatrix(request) {
+  const baseInput = request.input
+  const baseline = request.calculation
+  const rows = [
+    buildScenarioRow({
+      id: 'baseline',
+      label: '当前输入基准',
+      changes: { nextIncome: 'current-request', nextRent: 'current-request', nextOtherSpend: 'current-request' },
+      input: baseInput,
+      calculation: baseline,
+      rationale: '用户当前提交的确定性计算结果。',
+    }),
+    buildScenarioRow({
+      id: 'rent-stable',
+      label: '住房支出稳定',
+      changes: { nextRent: baseInput.currentRent },
+      input: { ...baseInput, nextRent: baseInput.currentRent },
+      calculation: calculateLivingCost({ ...baseInput, nextRent: baseInput.currentRent }),
+      rationale: '只把下一阶段住房支出恢复为当前水平。',
+    }),
+    buildScenarioRow({
+      id: 'daily-spend-stable',
+      label: '日常支出稳定',
+      changes: { nextOtherSpend: baseInput.otherSpend },
+      input: baseInput,
+      calculation: calculateLivingCost(baseInput, baseInput.otherSpend),
+      rationale: '只把下一阶段日常支出控制在当前水平。',
+    }),
+    buildScenarioRow({
+      id: 'break-even-income',
+      label: '达到保本收入',
+      changes: { nextIncome: baseline.breakEvenIncome },
+      input: { ...baseInput, nextIncome: baseline.breakEvenIncome },
+      calculation: calculateLivingCost({ ...baseInput, nextIncome: baseline.breakEvenIncome }),
+      rationale: '把下一阶段到手收入设为维持当前月结余所需的保本收入。',
+    }),
+    buildScenarioRow({
+      id: 'rent-stress-5pct',
+      label: '住房压力：房租再涨 5%',
+      changes: { nextRentMultiplier: 1.05 },
+      input: { ...baseInput, nextRent: baseInput.nextRent * 1.05 },
+      calculation: calculateLivingCost({ ...baseInput, nextRent: baseInput.nextRent * 1.05 }),
+      rationale: '在当前下一阶段房租基础上增加 5%，其他变量不变。',
+    }),
+    buildScenarioRow({
+      id: 'daily-spend-stress-3pct',
+      label: '日常支出压力：再高 3%',
+      changes: { nextOtherSpendMultiplier: 1.03 },
+      input: baseInput,
+      calculation: calculateLivingCost(baseInput, baseline.nextOtherSpend * 1.03),
+      rationale: '在基准下一阶段日常支出基础上增加 3%，其他变量不变。',
+    }),
+    buildScenarioRow({
+      id: 'conservative-income',
+      label: '保守收入：只实现一半涨幅',
+      changes: { raiseCaptureRate: 0.5 },
+      input: {
+        ...baseInput,
+        nextIncome: baseInput.currentIncome + (baseInput.nextIncome - baseInput.currentIncome) * 0.5,
+      },
+      calculation: calculateLivingCost({
+        ...baseInput,
+        nextIncome: baseInput.currentIncome + (baseInput.nextIncome - baseInput.currentIncome) * 0.5,
+      }),
+      rationale: '只实现用户预期涨幅的一半，住房与日常支出按基准不变。',
+    }),
+  ]
+  return rows
+}
+
+export function buildDriverRanking(request) {
+  const dailySpendDelta = request.calculation.nextOtherSpend - request.input.otherSpend
+  const drivers = [
+    { id: 'net-income', label: '到手收入变化', monthlyImpact: request.calculation.raiseIncrease, direction: request.calculation.raiseIncrease >= 0 ? 'positive' : 'negative' },
+    { id: 'housing', label: '住房支出变化', monthlyImpact: -request.calculation.rentIncrease, direction: request.calculation.rentIncrease <= 0 ? 'positive' : 'negative' },
+    { id: 'daily-spend', label: '日常支出变化', monthlyImpact: -dailySpendDelta, direction: dailySpendDelta <= 0 ? 'positive' : 'negative' },
+  ]
+  const totalAbsoluteImpact = drivers.reduce((sum, driver) => sum + Math.abs(driver.monthlyImpact), 0)
+  return drivers
+    .map((driver) => ({
+      ...driver,
+      impactRatio: totalAbsoluteImpact > 0 ? Math.abs(driver.monthlyImpact) / totalAbsoluteImpact : 0,
+      authority: 'deterministic',
+      source: 'Real Raise living-cost.v2',
+    }))
+    .sort((left, right) => Math.abs(right.monthlyImpact) - Math.abs(left.monthlyImpact))
+    .map((driver, index) => ({ rank: index + 1, ...driver }))
 }
 
 export function validateAnalysisRequest(value) {
@@ -369,9 +484,11 @@ export function buildPrompt(request) {
     .map((source) => `- ${source.name}｜${source.year}｜${source.scope}｜${source.url}`)
     .join('\n')
   const diagnosticPacket = buildDiagnosticPacket(request)
+  const driverRanking = buildDriverRanking(request)
+  const scenarioMatrix = buildScenarioMatrix(request)
 
   return [
-    '你是 Real Raise 的解释 Agent。当前请求已授权，直接执行，不要询问确认，不要调用 web_search/web_fetch。',
+    '你是 Real Raise 的真实涨薪诊断 Agent。当前请求已授权，直接执行，不要询问确认，不要调用 web_search/web_fetch。',
     '只使用下面给出的服务端确定性计算结果和官方来源索引；不得重算、覆盖、纠正或擅自四舍五入任何金额。',
     '',
     '【不可违反的边界】',
@@ -385,18 +502,21 @@ export function buildPrompt(request) {
     `【确定性计算版本】\n${request.calculationVersion}`,
     `【服务端确定性计算结果（权威）】\n${JSON.stringify(request.calculation, null, 2)}`,
     `【确定性诊断包（只允许排序、比较和解释）】\n${JSON.stringify(diagnosticPacket, null, 2)}`,
+    `【驱动因素排名（权威，只允许解释）】\n${JSON.stringify(driverRanking, null, 2)}`,
+    `【确定性情景矩阵（权威，只允许比较）】\n${JSON.stringify(scenarioMatrix, null, 2)}`,
     `【工资条拆解】\n${payslip}`,
     `【日常支出详细分类】\n${detailed}`,
     `【官方来源索引】\n${sourceIndex}`,
     '',
     '【输出任务】',
     'A. 先校验 diagnostic-packet.reconciliation.difference 是否为 0；不是 0 时标记证据冲突并停止金额结论。',
-    'B. 按 monthlyImpact 绝对值排序，解释前三个驱动因素；工资条扣缴不得与到手收入重复相加。',
+    'B. 按 driver-ranking 的 rank 解释前三个驱动因素，说明金额、方向和影响比例；工资条扣缴不得与到手收入重复相加。',
     'C. 结合 cityContext 的 coverageTier 与 caveat 做基准说明，全国回退不得冒充城市原值。',
-    'D. 比较 packet 中的基准、住房稳定、日常支出稳定和保本收入情景，不得自行生成新金额。',
-    'E. 区分用户输入、确定性计算、官方观察值和派生估算。',
-    'F. 面向普通中国城市上班族，先结论后证据，简洁、不堆宏观术语。',
-    '尽力生成 explanation.md、evidence.csv、analysis-manifest.json；不要为了生成文件联网检索。',
+    'D. 比较 scenario-matrix 中的基准、住房稳定、日常支出稳定、保本收入和压力情景；不得自行生成新金额。',
+    'E. 找出结论最敏感的变量，并明确引用对应情景 id；找不到证据时写“证据不足”。',
+    'F. 区分用户输入、确定性计算、官方观察值和派生估算。',
+    'G. 面向普通中国城市上班族，先结论后证据，简洁、不堆宏观术语。',
+    '尽力生成 explanation.md、driver-ranking.csv、scenario-matrix.csv、share-summary.md、evidence.csv、analysis-manifest.json；不要为了生成文件联网检索。',
   ].join('\n')
 }
 
@@ -422,6 +542,76 @@ export function buildEvidenceCsv(request) {
   return rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
 }
 
+export function buildDriverRankingCsv(request) {
+  const rows = [['rank', 'driver_id', 'driver', 'monthly_impact', 'impact_ratio', 'direction', 'authority', 'source']]
+  for (const driver of buildDriverRanking(request)) {
+    rows.push([
+      driver.rank,
+      driver.id,
+      driver.label,
+      driver.monthlyImpact,
+      driver.impactRatio,
+      driver.direction,
+      driver.authority,
+      driver.source,
+    ])
+  }
+  return rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
+}
+
+export function buildScenarioMatrixCsv(request) {
+  const rows = [[
+    'scenario_id', 'scenario', 'next_income', 'next_rent', 'next_other_spend',
+    'monthly_remainder', 'annual_remainder', 'monthly_delta_vs_baseline',
+    'annual_delta_vs_baseline', 'break_even_income', 'calculation_version', 'provenance',
+  ]]
+  for (const scenario of buildScenarioMatrix(request)) {
+    rows.push([
+      scenario.id,
+      scenario.label,
+      scenario.nextIncome,
+      scenario.nextRent,
+      scenario.nextOtherSpend,
+      scenario.monthlyRemainder,
+      scenario.annualRemainder,
+      scenario.monthlyDeltaVsBaseline,
+      scenario.annualDeltaVsBaseline,
+      scenario.breakEvenIncome,
+      scenario.calculationVersion,
+      scenario.provenance,
+    ])
+  }
+  return rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
+}
+
+export function buildScenarioMatrixJson(request) {
+  return JSON.stringify({
+    schemaVersion: 'real-raise.scenario-matrix.v1',
+    calculationVersion: request.calculationVersion,
+    generatedBy: 'real-raise-worker-deterministic',
+    scenarios: buildScenarioMatrix(request),
+  }, null, 2)
+}
+
+export function buildShareSummaryMarkdown(request) {
+  const { calculation } = request
+  const raise = calculation.raiseIncrease
+  const retained = raise !== 0 ? calculation.monthlyRemainderChange / raise : null
+  const money = (value) => `${Math.round(value).toLocaleString('zh-CN')} 元`
+  const rate = (value) => `${(value * 100).toFixed(1)}%`
+  const topDriver = buildDriverRanking(request)[0]
+  return [
+    '# Real Raise 分享摘要',
+    '',
+    `- 核心结论：到手收入${raise >= 0 ? '增加' : '减少'} ${money(Math.abs(raise))}，每月可支配结余${calculation.monthlyRemainderChange >= 0 ? '增加' : '减少'} ${money(Math.abs(calculation.monthlyRemainderChange))}。`,
+    retained === null ? '- 涨薪留存率：证据不足（收入变化为 0）。' : `- 涨薪留存率：${rate(retained)}。`,
+    `- 最大影响因素：${topDriver.label}（${money(Math.abs(topDriver.monthlyImpact))}/月，方向：${topDriver.direction}）。`,
+    `- 城市口径：${request.cityContext.cityName} · ${request.cityContext.period} · ${request.cityContext.coverageTier}。`,
+    '',
+    '金额由 Real Raise 确定性公式生成；InfiniSynapse 只负责分析与表达。',
+  ].join('\n')
+}
+
 export function buildManifest({ requestId, vendorTaskId, request, execution }) {
   return JSON.stringify({
     schemaVersion: 'real-raise.analysis.v2',
@@ -435,6 +625,14 @@ export function buildManifest({ requestId, vendorTaskId, request, execution }) {
     cityContext: request.cityContext,
     input: request.input,
     calculation: request.calculation,
+    artifactContract: [
+      'explanation.md',
+      'driver-ranking.csv',
+      'scenario-matrix.csv',
+      'share-summary.md',
+      'evidence.csv',
+      'analysis-manifest.json',
+    ],
     sources: request.cityContext.overallSource
       && !OFFICIAL_SOURCES.some((source) => source.url === request.cityContext.overallSource.url)
       ? [...OFFICIAL_SOURCES, request.cityContext.overallSource]

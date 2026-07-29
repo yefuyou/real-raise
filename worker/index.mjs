@@ -120,28 +120,32 @@ export class AuthSessionStore {
       ? await request.json().catch(() => ({}))
       : {}
 
-    if (request.method === 'POST' && url.pathname === '/state') {
+    if (request.method === 'POST' && url.pathname === '/flow') {
+      const flowId = typeof body.flowId === 'string' ? body.flowId : ''
       const state = typeof body.state === 'string' ? body.state : ''
       const expiresAt = Number(body.expiresAt)
-      if (!state || !Number.isFinite(expiresAt)) {
+      if (!flowId || !state || !Number.isFinite(expiresAt)) {
         return Response.json({ ok: false }, { status: 400 })
       }
-      await this.state.storage.put(`oauth-state:${state}`, { expiresAt })
+      await this.state.storage.put(`oauth-flow:${flowId}`, { state, expiresAt })
       return Response.json({ ok: true })
     }
 
-    if (request.method === 'POST' && url.pathname === '/state/consume') {
+    if (request.method === 'POST' && url.pathname === '/flow/consume') {
+      const flowId = typeof body.flowId === 'string' ? body.flowId : ''
       const state = typeof body.state === 'string' ? body.state : ''
-      if (!state) return Response.json({ valid: false }, { status: 400 })
-      const key = `oauth-state:${state}`
+      if (!flowId || !state) return Response.json({ valid: false }, { status: 400 })
+      const key = `oauth-flow:${flowId}`
       const record = await this.state.storage.get(key)
       await this.state.storage.delete(key)
-      return Response.json({ valid: Boolean(record && Number(record.expiresAt) > Date.now()) })
+      return Response.json({
+        valid: Boolean(record && record.state === state && Number(record.expiresAt) > Date.now()),
+      })
     }
 
-    if (request.method === 'POST' && url.pathname === '/state/delete') {
-      const state = typeof body.state === 'string' ? body.state : ''
-      if (state) await this.state.storage.delete(`oauth-state:${state}`)
+    if (request.method === 'POST' && url.pathname === '/flow/delete') {
+      const flowId = typeof body.flowId === 'string' ? body.flowId : ''
+      if (flowId) await this.state.storage.delete(`oauth-flow:${flowId}`)
       return Response.json({ ok: true })
     }
 
@@ -240,6 +244,21 @@ function ssoCookie(sessionId, maxAge, sameSite = 'Lax') {
     `SameSite=${sameSite}`,
     `Max-Age=${Math.max(0, Math.floor(maxAge))}`,
   ].join('; ')
+}
+
+function oauthFlowCookie(flowId, maxAge, sameSite = 'Lax') {
+  return [
+    `__Host-rr_oauth_flow=${flowId}`,
+    'Path=/',
+    'HttpOnly',
+    'Secure',
+    `SameSite=${sameSite}`,
+    `Max-Age=${Math.max(0, Math.floor(maxAge))}`,
+  ].join('; ')
+}
+
+function clearOauthFlowCookie(sameSite = 'Lax') {
+  return oauthFlowCookie('', 0, sameSite)
 }
 
 function clearSsoCookie() {
@@ -373,31 +392,31 @@ async function authStoreRequest(env, path, init = {}) {
   return stub.fetch(new Request(`https://auth-store.internal${path}`, init))
 }
 
-async function saveOauthState(env, state, expiresAt) {
-  const response = await authStoreRequest(env, '/state', {
+async function saveOauthFlow(env, flowId, state, expiresAt) {
+  const response = await authStoreRequest(env, '/flow', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state, expiresAt }),
+    body: JSON.stringify({ flowId, state, expiresAt }),
   })
   return Boolean(response?.ok)
 }
 
-async function consumeOauthState(env, state) {
-  const response = await authStoreRequest(env, '/state/consume', {
+async function consumeOauthFlow(env, flowId, state) {
+  const response = await authStoreRequest(env, '/flow/consume', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ flowId, state }),
   })
   if (!response?.ok) return false
   const body = await response.json().catch(() => ({}))
   return body.valid === true
 }
 
-async function deleteOauthState(env, state) {
-  await authStoreRequest(env, '/state/delete', {
+async function deleteOauthFlow(env, flowId) {
+  await authStoreRequest(env, '/flow/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ flowId }),
   })
 }
 
@@ -479,13 +498,14 @@ async function handleSsoStart(request, env) {
     return authErrorResponse(origin, 'SSO_NOT_CONFIGURED', '登录服务尚未配置，请稍后再试。')
   }
 
+  const flowId = randomToken(24)
   const state = randomToken(32)
   const expiresAt = Date.now() + positiveInteger(
     env.SSO_FLOW_TTL_SECONDS,
     DEFAULT_SSO_FLOW_TTL_SECONDS,
     30 * 60,
   ) * 1000
-  if (!await saveOauthState(env, state, expiresAt)) {
+  if (!await saveOauthFlow(env, flowId, state, expiresAt)) {
     return authErrorResponse(origin, 'SSO_SESSION_STORE_UNAVAILABLE', '登录服务暂时不可用，请稍后再试。')
   }
 
@@ -503,11 +523,12 @@ async function handleSsoStart(request, env) {
       status: 302,
       headers: {
         Location: data.entryUrl,
+        'Set-Cookie': oauthFlowCookie(flowId, Math.ceil((expiresAt - Date.now()) / 1000), ssoCookieSameSite(config)),
         'Cache-Control': 'no-store',
       },
     })
   } catch {
-    await deleteOauthState(env, state)
+    await deleteOauthFlow(env, flowId)
     return authErrorResponse(origin, 'SSO_PROVIDER_UNAVAILABLE', 'InfiniSynapse 登录暂时不可用，请稍后再试。', 502)
   }
 }
@@ -521,8 +542,17 @@ async function handleSsoCallback(request, env) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code') ?? ''
   const state = url.searchParams.get('state') ?? ''
-  if (!code || !state || !(await consumeOauthState(env, state))) {
-    return new Response(null, { status: 302, headers: { Location: safeAuthRedirect(config, 'invalid-callback', requestOrigin) } })
+  const flowId = cookieValue(request, '__Host-rr_oauth_flow')
+  const redirectHeaders = (reason) => {
+    const headers = new Headers({
+      Location: safeAuthRedirect(config, reason, requestOrigin),
+      'Cache-Control': 'no-store',
+    })
+    headers.append('Set-Cookie', clearOauthFlowCookie(ssoCookieSameSite(config)))
+    return headers
+  }
+  if (!code || !state || !flowId || !(await consumeOauthFlow(env, flowId, state))) {
+    return new Response(null, { status: 302, headers: redirectHeaders('invalid-callback') })
   }
 
   try {
@@ -554,14 +584,14 @@ async function handleSsoCallback(request, env) {
     if (!stored) throw new Error('Session store unavailable')
     return new Response(null, {
       status: 302,
-      headers: {
-        Location: safeAuthRedirect(config, 'success', requestOrigin),
-        'Set-Cookie': ssoCookie(sessionId, ttlSeconds, ssoCookieSameSite(config)),
-        'Cache-Control': 'no-store',
-      },
+      headers: (() => {
+        const headers = redirectHeaders('success')
+        headers.append('Set-Cookie', ssoCookie(sessionId, ttlSeconds, ssoCookieSameSite(config)))
+        return headers
+      })(),
     })
   } catch {
-    return new Response(null, { status: 302, headers: { Location: safeAuthRedirect(config, 'failed', requestOrigin) } })
+    return new Response(null, { status: 302, headers: redirectHeaders('failed') })
   }
 }
 
@@ -615,6 +645,18 @@ export function resolveAnalysisMode({ requestedMode, judgeHeader, hasPartnerSess
   if (judgeHeader === 'true') return { mode: 'judge', code: null }
   if (hasPartnerSession) return { mode: 'partner', code: null }
   return { mode: 'judge', code: null }
+}
+
+export async function validateJudgeAuthorization(request, env, now = Date.now()) {
+  if (!env.JUDGE_TOKEN_SECRET) {
+    return { ok: false, code: 'JUDGE_AUTH_NOT_CONFIGURED' }
+  }
+  const token = bearerToken(request)
+  if (!token) return { ok: false, code: 'JUDGE_TOKEN_REQUIRED' }
+  const valid = await verifyJudgeToken(token, env.JUDGE_TOKEN_SECRET, now)
+  return valid
+    ? { ok: true, code: null }
+    : { ok: false, code: 'JUDGE_TOKEN_INVALID' }
 }
 
 async function handleJudgeSession(request, env) {
@@ -745,9 +787,14 @@ async function handleAnalysis(request, env) {
     return errorResponse(origin, 503, 'SERVER_NOT_CONFIGURED', '实时分析服务尚未配置。', true)
   }
   // Judge mode is explicitly independent from Partner SSO. A logged-in user
-  // still uses the project judge key when the caller asks for judge mode.
-  if (!usingPartnerKey && request.headers.get('X-Real-Raise-Judge') !== 'true') {
-    return errorResponse(origin, 403, 'JUDGE_MODE_REQUIRED', '请先进入评委模式。')
+  // still uses the project judge key when the caller asks for judge mode, but
+  // the signed session is the only credential that can unlock that key.
+  if (!usingPartnerKey) {
+    const judgeAuth = await validateJudgeAuthorization(request, env)
+    if (!judgeAuth.ok) {
+      const status = judgeAuth.code === 'JUDGE_AUTH_NOT_CONFIGURED' ? 503 : 401
+      return errorResponse(origin, status, judgeAuth.code, '请先输入有效的评委口令。')
+    }
   }
 
   let analysisRequest

@@ -3,6 +3,7 @@ import type {
   AgentTaskStatus,
   StartAnalysisRequest,
 } from './realRaiseContract'
+import { loadJudgeAccessToken } from './judgeAccessClient'
 
 declare const __REAL_RAISE_ANALYSIS_API_URL__: string | undefined
 
@@ -179,7 +180,12 @@ export async function startServerAnalysis(
     'X-Real-Raise-Session': makeSessionId(),
   }
   if (mode === 'judge') {
+    const judgeToken = loadJudgeAccessToken()
+    if (!judgeToken) {
+      throw new ServerAnalysisUnavailable('请先输入评委口令。', 'JUDGE_TOKEN_REQUIRED', 401, false)
+    }
     headers['X-Real-Raise-Judge'] = 'true'
+    headers.Authorization = `Bearer ${judgeToken}`
   }
 
   try {

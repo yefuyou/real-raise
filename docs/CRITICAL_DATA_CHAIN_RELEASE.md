@@ -14,7 +14,7 @@
   → Worker 丢弃客户端计算并服务端重算
   → Worker 核验城市基准与公式版本
   → Partner/Judge 发起 InfiniSynapse 任务；未登录则播放 Replay
-  → 平台只负责正文、排序、情景解释
+  → 平台只负责正文、驱动排序、情景解释
   → Real Raise 重建 evidence/manifest
   → completed.provenance 明示任务来源和用户归因
 ```
@@ -42,6 +42,8 @@
   月结余变化。
 - 工资条扣缴只作为到手收入形成过程，不与到手收入重复相加。
 - 提示词只能排序、比较和解释预先计算的情景，不允许自行生成金额。
+- Worker 额外生成 `driver-ranking.csv`、`scenario-matrix.csv/json` 与
+  `share-summary.md`；平台读取这些权威材料，而不是凭空推演金额。
 - 结构化卡片改名并固定为 Real Raise 确定性结果，不再伪装成模型输出。
 
 ### 城市与来源
@@ -59,6 +61,13 @@
 - 默认 `evidence.csv` 与 `analysis-manifest.json` 始终由 Real Raise
   确定性结果生成。
 - 平台生成的同名文件另存为 `vendor-original-*`，只供原件核验。
+
+### 认证边界
+
+- Judge 实时任务必须携带由 `/api/judge/session` 签发的短期 Bearer token；
+  `X-Real-Raise-Judge: true` 只是模式提示，不是权限凭证。
+- Partner SSO 的 `state` 与短期 HttpOnly `__Host-rr_oauth_flow` Cookie
+  绑定；缺 Cookie、错配、过期或重放一律拒绝。
 
 ### Replay 迁移
 
@@ -87,7 +96,8 @@
 ### 不发生的变化
 
 - 不迁移数据库或 Durable Object 数据。
-- 不改变 SSO Cookie 格式、Secret、配额、并发或生产域名。
+- 不改变现有会话 Cookie、Secret、配额、并发或生产域名；仅新增 SSO flow
+  绑定 Cookie。
 - 不修改用户输入公式界面和主结果卡片布局。
 - 本轮不自动部署生产。
 
@@ -98,7 +108,7 @@
 | 高 | 前端和 Worker 的可信城市目录未来发生漂移 | 合法请求被拒绝，实时分析降级 | 发布前覆盖全国、北京、上海、深圳和一个回退城市；新增城市时同步更新并跑 Worker 门禁 |
 | 高 | Partner SSO 登录成功但任务没有使用用户级 Key | 注册/活跃无法归因 | 真实冒烟必须核对 `provenance.attribution=partner-user-key`、vendorTaskId 和平台后台用户 |
 | 高 | 平台正文引用旧值或自行重算 | 用户看到正文与卡片冲突 | 正文与证据分层；默认 evidence/manifest 由 Real Raise 重建；人工冒烟比较关键金额 |
-| 中 | `replay.v2` 静态包或哈希损坏 | 回放失败并降级 Mock | CI 执行签名、语义、原件哈希和负向篡改审计 |
+| 中 | `replay.v2` 静态包或哈希损坏 | 回放停止并明确报错 | CI 执行签名、语义、原件哈希和负向篡改审计，不降级 Mock |
 | 中 | 新必填字段与旧静态资源混发 | Worker 返回 400，实时不可用 | 前端与 Worker 必须同批 canary；不得只更新一侧 |
 | 中 | 结果区信息增多影响移动端可读性 | 用户难以理解或按钮换行 | 发布前检查 360px、768px、桌面三档截图 |
 | 低 | 旧 Node 自托管适配器没有采用新 Worker 路由 | 本地备用链行为不同 | 明确标为非生产备用；`server:test` 保持通过，后续单独统一 |
@@ -127,7 +137,7 @@
 
 1. 保持现网不变，在预览或独立 Worker 环境部署同一提交。
 2. 用全国、北京、上海、深圳、合肥各跑一笔；确认城市值/回退状态和来源。
-3. 分别验证 Partner、Judge 和 Replay；Mock 只在自动化测试中验证，不作为用户路径。
+3. 分别验证 Partner、Judge 和 Replay；Judge 必须覆盖无 token/假 token/过期 token；Mock 只在自动化测试中验证，不作为用户路径。
 4. 检查 360px、768px、桌面结果区和全部下载文件。
 5. 使用全新 Partner 账号：登录 → 创建真实任务 → SSE 完成 → 下载清单 →
    平台后台核对用户与任务归因。
@@ -180,8 +190,8 @@
 
 **代码进入 Draft PR：GO WITH CONDITIONS。**
 
-已满足：实现完成、Replay 原件审计、前端测试、Worker 测试、Node 备用服务
-测试和生产构建。
+已满足：Judge token 端到端门禁、SSO flow 绑定、Replay 原件审计、驱动排名与
+情景矩阵产物、前端测试、Worker 测试、Node 备用服务测试和生产构建。
 
 **生产部署：NO-GO。**
 

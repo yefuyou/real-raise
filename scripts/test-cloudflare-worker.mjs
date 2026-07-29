@@ -4,6 +4,7 @@ import worker, {
   AuthSessionStore,
   createJudgeToken,
   resolveAnalysisMode,
+  validateJudgeAuthorization,
   UsageGuard,
   verifyJudgeToken,
 } from '../worker/index.mjs'
@@ -12,7 +13,10 @@ import {
   InputError,
   buildCompletedProvenance,
   buildDiagnosticPacket,
+  buildDriverRankingCsv,
   buildExecutionContext,
+  buildScenarioMatrix,
+  buildScenarioMatrixCsv,
   calculateLivingCost,
   validateAnalysisRequest,
 } from '../worker/core.mjs'
@@ -65,6 +69,13 @@ assert.ok(Math.abs(diagnosticPacket.reconciliation.difference) < 1e-9)
 assert.equal(diagnosticPacket.cityContext.cityCode, '340100')
 assert.equal(diagnosticPacket.scenarios.length, 4)
 console.log('PASS Worker diagnostic packet reconciles every driver to the authoritative remainder')
+
+const scenarioMatrix = buildScenarioMatrix(validated)
+assert.equal(scenarioMatrix.length, 7)
+assert.equal(scenarioMatrix.find((row) => row.id === 'break-even-income')?.nextIncome, validated.calculation.breakEvenIncome)
+assert.match(buildDriverRankingCsv(validated), /driver_id,driver,monthly_impact/)
+assert.match(buildScenarioMatrixCsv(validated), /scenario_id,scenario,next_income/)
+console.log('PASS Worker scenario matrix and driver ranking are deterministic, versioned, and exportable')
 
 const detailedZeroToFourRequest = {
   ...validRequest,
@@ -167,6 +178,10 @@ assert.equal(sealedArtifacts['vendor-original-evidence.csv'], 'stale vendor perc
 assert.equal(sealedArtifacts['vendor-original-analysis-manifest.json'], '{"formula":"legacy"}')
 assert.match(sealedArtifacts['evidence.csv'], /calculationVersion,living-cost\.v2,system-version/)
 assert.equal(JSON.parse(sealedArtifacts['analysis-manifest.json']).calculationVersion, 'living-cost.v2')
+assert.match(sealedArtifacts['driver-ranking.csv'], /driver_id,driver,monthly_impact/)
+assert.match(sealedArtifacts['scenario-matrix.csv'], /scenario_id,scenario,next_income/)
+assert.equal(JSON.parse(sealedArtifacts['scenario-matrix.json']).scenarios.length, 7)
+assert.match(sealedArtifacts['share-summary.md'], /核心结论/)
 console.log('PASS Worker preserves vendor originals but seals authoritative evidence and manifest')
 
 class MemoryStorage {
@@ -242,6 +257,31 @@ assert.equal(await verifyJudgeToken(judgeSession.token, 'test-signing-secret', j
 assert.equal(await verifyJudgeToken(`${judgeSession.token}tampered`, 'test-signing-secret', now + 1), false)
 console.log('PASS Judge sessions are signed, secret-bound, tamper-resistant, and expiring')
 
+const judgeAuthEnv = { JUDGE_TOKEN_SECRET: 'test-signing-secret' }
+const missingJudgeToken = await validateJudgeAuthorization(
+  new Request('https://real-raise-api.example/api/analysis'),
+  judgeAuthEnv,
+  now + 1,
+)
+assert.deepEqual(missingJudgeToken, { ok: false, code: 'JUDGE_TOKEN_REQUIRED' })
+const forgedJudgeToken = await validateJudgeAuthorization(
+  new Request('https://real-raise-api.example/api/analysis', {
+    headers: { Authorization: 'Bearer forged-token' },
+  }),
+  judgeAuthEnv,
+  now + 1,
+)
+assert.deepEqual(forgedJudgeToken, { ok: false, code: 'JUDGE_TOKEN_INVALID' })
+const validJudgeAuthorization = await validateJudgeAuthorization(
+  new Request('https://real-raise-api.example/api/analysis', {
+    headers: { Authorization: `Bearer ${judgeSession.token}` },
+  }),
+  judgeAuthEnv,
+  now + 1,
+)
+assert.deepEqual(validJudgeAuthorization, { ok: true, code: null })
+console.log('PASS Judge analysis authorization requires a valid signed bearer token')
+
 const authEnv = {
   ALLOWED_ORIGINS: 'https://real-raise.example',
   LIVE_ANALYSIS_ENABLED: 'true',
@@ -276,8 +316,33 @@ const unauthenticatedAnalysis = await worker.fetch(new Request('https://real-rai
   },
   body: JSON.stringify(validRequest),
 }), authEnv)
-assert.equal(unauthenticatedAnalysis.status, 403)
-assert.equal((await unauthenticatedAnalysis.json()).error.code, 'JUDGE_MODE_REQUIRED')
+assert.equal(unauthenticatedAnalysis.status, 401)
+assert.equal((await unauthenticatedAnalysis.json()).error.code, 'JUDGE_TOKEN_REQUIRED')
+
+const headerOnlyJudgeAnalysis = await worker.fetch(new Request('https://real-raise-api.example/api/analysis', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Origin: 'https://real-raise.example',
+    'X-Real-Raise-Judge': 'true',
+  },
+  body: JSON.stringify(validRequest),
+}), authEnv)
+assert.equal(headerOnlyJudgeAnalysis.status, 401)
+assert.equal((await headerOnlyJudgeAnalysis.json()).error.code, 'JUDGE_TOKEN_REQUIRED')
+
+const forgedJudgeAnalysis = await worker.fetch(new Request('https://real-raise-api.example/api/analysis', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Origin: 'https://real-raise.example',
+    'X-Real-Raise-Judge': 'true',
+    Authorization: 'Bearer forged-token',
+  },
+  body: JSON.stringify(validRequest),
+}), authEnv)
+assert.equal(forgedJudgeAnalysis.status, 401)
+assert.equal((await forgedJudgeAnalysis.json()).error.code, 'JUDGE_TOKEN_INVALID')
 
 const preflight = await worker.fetch(new Request('https://real-raise-api.example/api/analysis', {
   method: 'OPTIONS',
@@ -285,6 +350,7 @@ const preflight = await worker.fetch(new Request('https://real-raise-api.example
 }), authEnv)
 assert.equal(preflight.status, 204)
 assert.match(preflight.headers.get('Access-Control-Allow-Headers') ?? '', /X-Real-Raise-Judge/)
+assert.match(preflight.headers.get('Access-Control-Allow-Headers') ?? '', /Authorization/)
 console.log('PASS Worker judge session compatibility, judge-mode gate, and CORS')
 
 const authStorage = new MemoryStorage()
@@ -305,6 +371,7 @@ const ssoEnv = {
   JUDGE_AUTH_RATE_LIMITER: { limit: async () => ({ success: true }) },
 }
 let capturedState = ''
+let flowCookie = ''
 const originalFetch = globalThis.fetch
 globalThis.fetch = async (url, init = {}) => {
   if (String(url).endsWith('/auth/partner/sessions')) {
@@ -334,20 +401,31 @@ const startResponse = await worker.fetch(new Request('https://real-raise.example
 assert.equal(startResponse.status, 302)
 assert.match(startResponse.headers.get('location') ?? '', /^https:\/\/app\.infinisynapse\.cn\/auth\/entry/)
 assert.ok(capturedState)
+flowCookie = (startResponse.headers.get('set-cookie') ?? '').split(';')[0]
+assert.match(flowCookie, /^__Host-rr_oauth_flow=/)
+
+const crossBrowserCallback = await worker.fetch(new Request(
+  `https://real-raise.example/api/auth/infini/callback?code=ac_test&state=${encodeURIComponent(capturedState)}`,
+), ssoEnv)
+assert.match(crossBrowserCallback.headers.get('location') ?? '', /auth_error=invalid-callback/)
 
 const callbackResponse = await worker.fetch(new Request(
   `https://real-raise.example/api/auth/infini/callback?code=ac_test&state=${encodeURIComponent(capturedState)}`,
+  { headers: { Cookie: flowCookie } },
 ), ssoEnv)
 assert.equal(callbackResponse.status, 302)
 const sessionCookie = callbackResponse.headers.get('set-cookie') ?? ''
+const sessionCookiePair = sessionCookie.match(/__Host-rr_session=[^;,]+/)?.[0] ?? ''
+assert.match(sessionCookiePair, /^__Host-rr_session=/)
 assert.match(sessionCookie, /HttpOnly/)
 assert.match(sessionCookie, /SameSite=Lax/)
 assert.doesNotMatch(sessionCookie, /partner-test-fixture-key/)
+assert.match(sessionCookie, /__Host-rr_oauth_flow=;/)
 
 const meResponse = await worker.fetch(new Request('https://real-raise.example/api/auth/me', {
   headers: {
     Origin: 'https://real-raise.example',
-    Cookie: sessionCookie.split(';')[0],
+    Cookie: sessionCookiePair,
   },
 }), ssoEnv)
 assert.equal(meResponse.status, 200)
@@ -361,7 +439,7 @@ assert.equal(meBody.canRunAnalysis, true)
 assert.doesNotMatch(JSON.stringify(meBody), /partner-test-fixture-key/)
 
 const sameOriginWithoutOriginHeader = await worker.fetch(new Request('https://real-raise.example/api/auth/me', {
-  headers: { Cookie: sessionCookie.split(';')[0] },
+  headers: { Cookie: sessionCookiePair },
 }), ssoEnv)
 assert.equal(sameOriginWithoutOriginHeader.status, 200)
 assert.equal((await sameOriginWithoutOriginHeader.json()).authenticated, true)
@@ -375,14 +453,14 @@ const logoutResponse = await worker.fetch(new Request('https://real-raise.exampl
   method: 'POST',
   headers: {
     Origin: 'https://real-raise.example',
-    Cookie: sessionCookie.split(';')[0],
+    Cookie: sessionCookiePair,
   },
 }), ssoEnv)
 assert.equal(logoutResponse.status, 200)
 const afterLogout = await worker.fetch(new Request('https://real-raise.example/api/auth/me', {
   headers: {
     Origin: 'https://real-raise.example',
-    Cookie: sessionCookie.split(';')[0],
+    Cookie: sessionCookiePair,
   },
 }), ssoEnv)
 assert.equal((await afterLogout.json()).authenticated, false)

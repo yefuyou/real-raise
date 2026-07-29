@@ -1,8 +1,12 @@
 import {
   OFFICIAL_SOURCES,
+  buildDriverRankingCsv,
   buildEvidenceCsv,
   buildManifest,
   buildPrompt,
+  buildScenarioMatrixCsv,
+  buildScenarioMatrixJson,
+  buildShareSummaryMarkdown,
   isRecord,
 } from './core.mjs'
 
@@ -236,13 +240,22 @@ export function sealAuthoritativeArtifacts(
   { requestId, vendorTaskId, request, execution },
 ) {
   const sealed = { ...artifacts }
-  if (sealed['evidence.csv']) {
-    sealed['vendor-original-evidence.csv'] = sealed['evidence.csv']
-  }
-  if (sealed['analysis-manifest.json']) {
-    sealed['vendor-original-analysis-manifest.json'] = sealed['analysis-manifest.json']
+  const authoritativeNames = [
+    'evidence.csv',
+    'analysis-manifest.json',
+    'driver-ranking.csv',
+    'scenario-matrix.csv',
+    'scenario-matrix.json',
+    'share-summary.md',
+  ]
+  for (const name of authoritativeNames) {
+    if (sealed[name]) sealed[`vendor-original-${name}`] = sealed[name]
   }
   sealed['evidence.csv'] = buildEvidenceCsv(request)
+  sealed['driver-ranking.csv'] = buildDriverRankingCsv(request)
+  sealed['scenario-matrix.csv'] = buildScenarioMatrixCsv(request)
+  sealed['scenario-matrix.json'] = buildScenarioMatrixJson(request)
+  sealed['share-summary.md'] = buildShareSummaryMarkdown(request)
   sealed['analysis-manifest.json'] = buildManifest({
     requestId,
     vendorTaskId,

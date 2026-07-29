@@ -693,7 +693,7 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
   margin-top: 6px;
 }
 
-/* --- 用户自带 API Key（BYOK）面板 --- */
+/* --- 评委认证与服务端任务状态 --- */
 .api-key-panel {
   margin: 0 0 14px;
   padding: 12px 14px;
@@ -845,6 +845,7 @@ h2 { margin-bottom: 0; font: 500 26px/1.2 Fraunces, serif; letter-spacing: -.035
 .judge-access-exit { border-color: var(--line); background: transparent; color: var(--muted); }
 .judge-access-notice { margin: 8px 0 0 !important; color: var(--red) !important; font-size: 10px !important; }
 .judge-access-panel.is-unlocked .judge-access-notice { color: var(--green) !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* --- 真实任务存档回放标注 --- */
 .replay-banner {

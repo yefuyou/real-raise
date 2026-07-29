@@ -277,7 +277,7 @@ export function formatFriendlyAuthErrorMessage(code?: string | null, rawMessage?
     normalizedMsg.includes('cancelled') ||
     normalizedMsg.includes('cancel')
   ) {
-    return '登录授权已取消。未登录状态下仍可继续使用本地算表与 Mock 演示。'
+    return '登录授权已取消。未登录状态下仍可继续使用本地算表与真实任务回放。'
   }
   if (normalizedCode === 'SIMULATED_ERROR') {
     return '模拟的网络响应异常，请点击“重新尝试”按钮恢复。'

@@ -1,4 +1,11 @@
-import { buildAnalysisManifest, buildEvidenceCsv } from './analysisArtifacts'
+import {
+  buildAnalysisManifest,
+  buildDriverRankingCsv,
+  buildEvidenceCsv,
+  buildScenarioMatrixCsv,
+  buildScenarioMatrixJson,
+  buildShareSummaryMarkdown,
+} from './analysisArtifacts'
 import type {
   AgentTaskEvent,
   ReplayMeta,
@@ -112,6 +119,10 @@ export function buildReplayArtifacts(options: {
     }
   }
   artifacts.set('evidence.csv', buildEvidenceCsv(options.request, options.sources))
+  artifacts.set('driver-ranking.csv', buildDriverRankingCsv(options.request))
+  artifacts.set('scenario-matrix.csv', buildScenarioMatrixCsv(options.request))
+  artifacts.set('scenario-matrix.json', buildScenarioMatrixJson(options.request))
+  artifacts.set('share-summary.md', buildShareSummaryMarkdown(options.request))
   artifacts.set('analysis-manifest.json', buildAnalysisManifest({
     taskId: options.taskId,
     vendorTaskId: options.vendorTaskId,

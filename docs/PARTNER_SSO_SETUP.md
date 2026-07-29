@@ -4,10 +4,11 @@
 
 1. 浏览器访问 `/api/auth/infini/start`。
 2. Worker 使用服务端 `X-Client-Id` / `X-Client-Secret` 创建登录会话并跳转到平台 `entryUrl`。
-3. 平台回调 `/api/auth/infini/callback?code=...&state=...`。
-4. Worker 一次性消费 `state`，用 `code` 换取平台用户资料，并请求 `withApiKey: true`。
-5. Partner API Key 只存 Durable Object；浏览器只拿到 `HttpOnly` 的不透明会话 Cookie。
-6. `/api/auth/me` 只返回 `id`、昵称、头像和 `canRunAnalysis`；`/api/auth/logout` 使会话失效。
+3. Worker 同时写入短期 HttpOnly `__Host-rr_oauth_flow` Cookie 与 Durable Object 的 `flowId → state` 记录。
+4. 平台回调 `/api/auth/infini/callback?code=...&state=...`；Worker 必须同时核验 flow Cookie 与 `state`，成功或失败后一次性清理。
+5. Worker 用 `code` 换取平台用户资料，并请求 `withApiKey: true`。
+6. Partner API Key 只存 Durable Object；浏览器只拿到 `HttpOnly` 的不透明会话 Cookie。
+7. `/api/auth/me` 只返回 `id`、昵称、头像和 `canRunAnalysis`；`/api/auth/logout` 使会话失效。
 
 官方参考：[InfiniSynapse Partner SSO Integration Guide](https://infinisynapse.cn/zh/docs/InfiniSynapse%20Partner%20SSO%20Integration%20Guide)
 
@@ -51,10 +52,10 @@ wrangler deploy --dry-run
 
 ## 不能跳过的验收
 
-- 未登录用户仍可本地计算、Replay、Mock。
-- 登录回调的 `state` 缺失、错误、过期或重放都会被拒绝。
+- 未登录用户仍可本地计算与真实任务 Replay；Mock 只用于自动化测试。
+- 登录回调的 flow Cookie 或 `state` 缺失、错误、过期、跨浏览器或重放都会被拒绝。
 - `/api/auth/me` 和前端产物不包含 Partner API Key。
-- 真实分析使用登录用户的 Partner API Key；旧评委口令模式仍可回退。
+- 真实分析使用登录用户的 Partner API Key；Judge 必须先用口令换取签名短期 token，不能只凭请求头放行。
 - 退出登录后会话失效，不会替用户删除平台 API Key。
 - 本地联调必须使用 `credentials: include`，否则跨域访问远端 Worker 时不会带上 HttpOnly Cookie。
 
