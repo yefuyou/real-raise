@@ -94,6 +94,7 @@ const analysisContext = buildAnalysisContext(validated)
 assert.equal(analysisContext.schema_version, CONTEXT_VERSION)
 assert.equal(analysisContext.prompt_version, PROMPT_VERSION)
 assert.equal(analysisContext.task_goal, TASK_GOAL)
+assert.equal(analysisContext.provenance.analysis_model, 'platform-default')
 for (const key of [
   'input_snapshot',
   'deterministic_calculation',
@@ -129,8 +130,24 @@ assert.equal(manifest.contextVersion, CONTEXT_VERSION)
 assert.equal(manifest.taskGoal, TASK_GOAL)
 assert.equal(manifest.artifactStatus, 'stream-fallback')
 assert.equal(manifest.inputSignature, analysisContext.provenance.input_signature)
+assert.equal(manifest.analysisModel, 'platform-default')
 assert.deepEqual(manifest.sourceIds, analysisContext.source_index.map((source) => source.source_id))
 console.log('PASS diagnosis.v2 context, prompt safety, and manifest lineage are explicit')
+
+const proValidated = validateAnalysisRequest({
+  ...validRequest,
+  analysisModel: 'deepseek-v4-pro',
+})
+const proContext = buildAnalysisContext(proValidated)
+assert.equal(proContext.provenance.analysis_model, 'deepseek-v4-pro')
+assert.notEqual(proContext.provenance.input_signature, analysisContext.provenance.input_signature)
+assert.equal(JSON.parse(buildManifest({
+  requestId: 'request-pro-1',
+  vendorTaskId: 'vendor-pro-1',
+  request: proValidated,
+  execution: buildExecutionContext(true),
+})).analysisModel, 'deepseek-v4-pro')
+console.log('PASS selected model enters the authoritative context signature and execution manifest')
 
 const agentPayload = buildAgentNewTaskPayload({
   vendorTaskId: 'vendor-agent-1',
@@ -265,6 +282,7 @@ assert.deepEqual(
     taskGoal: TASK_GOAL,
     sourceIds: analysisContext.source_index.map((source) => source.source_id),
     inputSignature: analysisContext.provenance.input_signature,
+    analysisModel: 'platform-default',
     artifactStatus: 'verified',
   },
 )

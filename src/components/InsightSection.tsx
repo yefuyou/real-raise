@@ -26,6 +26,7 @@ import { authClient, formatFriendlyAuthErrorMessage, type AuthState } from '../a
 import type {
   AgentTaskStatus,
   AnalysisExecutionProvenance,
+  AnalysisModel,
   RealRaiseInsight,
   ReplayMeta,
   SourceReference,
@@ -47,6 +48,13 @@ type AnalysisInputContext = {
   inputMode: 'basic' | 'detailed'
   cityName: string
   calculationVersion: string
+  analysisModel: AnalysisModel | ''
+}
+
+function analysisModelLabel(model: AnalysisModel | '' | 'platform-default'): string {
+  if (model === 'deepseek-v4-flash') return 'DeepSeek V4 Flash'
+  if (model === 'deepseek-v4-pro') return 'DeepSeek V4 Pro'
+  return '跟随平台默认'
 }
 
 function executionLabel(provenance: AnalysisExecutionProvenance | null): string {
@@ -322,6 +330,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const [reportInputContext, setReportInputContext] = useState<AnalysisInputContext | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [selectedModel, setSelectedModel] = useState<AnalysisModel | ''>('')
 
   useEffect(() => {
     const unsub = authClient.subscribe((st) => setAuthState(st))
@@ -335,7 +344,10 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   const runVersionRef = useRef(0)
   const startInFlightRef = useRef(false)
   const pendingCancellationRef = useRef<Promise<boolean> | null>(null)
-  const currentRequestSignature = requestSignature(requestPayload)
+  const currentRequestSignature = requestSignature({
+    ...requestPayload,
+    ...(selectedModel ? { analysisModel: selectedModel } : {}),
+  })
 
   const taskUsesPreviousInputs = Boolean(
     taskInputContext
@@ -349,7 +361,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   )
   const describeInputContext = (context: AnalysisInputContext | null) => {
     if (!context) return '提交时的输入'
-    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'} · ${context.cityName} · ${context.calculationVersion}`
+    return `${context.incomeInputMode === 'payslip' ? '工资条模式' : '到手模式'} · ${context.inputMode === 'detailed' ? '详细拆解' : '基础模式'} · ${context.cityName} · ${analysisModelLabel(context.analysisModel)} · ${context.calculationVersion}`
   }
   const cancelTaskAndTrack = (id: string): Promise<boolean> => {
     const promise = apiClient.cancelAnalysis(id)
@@ -410,7 +422,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
   }, [remoteFeatureEnabled])
 
   const handleStartInsight = async (
-    forceSimulatedError?: boolean
+    forceSimulatedError?: boolean,
+    executionMode: 'live' | 'replay' = 'live',
   ) => {
     if (!remoteFeatureEnabled || analysisValidationMessage || startInFlightRef.current) return
     startInFlightRef.current = true
@@ -453,6 +466,7 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
       const payload: StartAnalysisRequest = {
         ...requestPayload,
         simulatedError: isSimError,
+        ...(executionMode === 'live' && selectedModel ? { analysisModel: selectedModel } : {}),
       }
       const runInputContext: AnalysisInputContext = {
         signature: requestSignature(payload),
@@ -460,9 +474,12 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         inputMode: payload.inputMode ?? 'basic',
         cityName: payload.cityContext.cityName,
         calculationVersion: payload.calculationVersion,
+        analysisModel: payload.analysisModel ?? '',
       }
       setTaskInputContext(runInputContext)
-      const response = await apiClient.startAnalysis(payload)
+      const response = executionMode === 'replay'
+        ? await apiClient.startReplayAnalysis(payload)
+        : await apiClient.startAnalysis(payload)
       const newTaskId = response.taskId
       if (runVersion !== runVersionRef.current) {
         await apiClient.cancelAnalysis(newTaskId)
@@ -622,8 +639,8 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
         <div className="analysis-stale-notice completed-stale-notice" role="status">
           <AlertTriangle size={15} />
           <span>
-            当前报告基于“{describeInputContext(reportInputContext)}”提交时的数据；左侧已有新输入。
-            确认左侧结果后，点击“按最新输入重新分析”才会发起新任务。
+            当前报告基于“{describeInputContext(reportInputContext)}”生成；页面输入或分析模型已经变化。
+            确认当前选择后，点击“按最新输入重新分析”才会发起新任务。
           </span>
         </div>
       )}
@@ -633,6 +650,33 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           <span>{analysisValidationMessage}</span>
         </div>
       )}
+
+      {serverLiveConfigured
+        && remoteFeatureEnabled
+        && authState.authenticated
+        && authState.canRunAnalysis !== false
+        && (
+          <div className="analysis-model-control">
+            <div>
+              <strong>分析模型</strong>
+              <span>仅影响下一次用户实时任务</span>
+            </div>
+            <label htmlFor="partner-analysis-model-select">
+              <span className="sr-only">选择 InfiniSynapse 分析模型</span>
+              <select
+                id="partner-analysis-model-select"
+                className="api-key-model-select"
+                value={selectedModel}
+                disabled={isStarting || status === 'queued' || status === 'running'}
+                onChange={(event) => setSelectedModel(event.target.value as AnalysisModel | '')}
+              >
+                <option value="">跟随平台默认</option>
+                <option value="deepseek-v4-flash">DeepSeek V4 Flash（省额度）</option>
+                <option value="deepseek-v4-pro">DeepSeek V4 Pro（高质量）</option>
+              </select>
+            </label>
+          </div>
+        )}
 
       {!remoteFeatureEnabled ? (
         <div className="insight-body idle-state">
@@ -673,17 +717,15 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
               </div>
             )}
 
-            {/* 未登录只允许播放与当前输入精确匹配的真实任务存档。 */}
-            {(!authState.authenticated || authState.canRunAnalysis === false) && (
-              <button
-                className="btn-generate-insight"
-                onClick={() => handleStartInsight()}
-                disabled={isStarting || authState.loading || Boolean(analysisValidationMessage)}
-                type="button"
-              >
-                <BookOpen size={16} /> 查看真实任务回放
-              </button>
-            )}
+            {/* 登录状态不影响回放：始终只播放与当前输入精确匹配的真实任务存档。 */}
+            <button
+              className="btn-generate-insight btn-replay-mode"
+              onClick={() => handleStartInsight(undefined, 'replay')}
+              disabled={isStarting || authState.loading || Boolean(analysisValidationMessage)}
+              type="button"
+            >
+              <BookOpen size={16} /> 查看真实任务回放（不消耗积分）
+            </button>
 
             <span className="quota-hint">
               {serverLiveConfigured
@@ -1029,6 +1071,14 @@ export const InsightSection: React.FC<InsightSectionProps> = ({
           <div className="insight-action-footer">
             <span className="footnote-text">数据来源：权威公开统计数据库 & 本地精准算表</span>
             <div className="footer-actions">
+              <button
+                className="btn-reanalyze btn-replay-mode"
+                onClick={() => handleStartInsight(undefined, 'replay')}
+                disabled={isStarting || Boolean(analysisValidationMessage)}
+                type="button"
+              >
+                <BookOpen size={13} /> 查看真实任务回放
+              </button>
               <button
                 className="btn-reanalyze"
                 onClick={() => handleStartInsight()}

@@ -102,6 +102,7 @@ export type AnalysisExecutionProvenance = {
   sourceIds?: string[]
   inputSignature?: string
   artifactStatus?: 'verified' | 'stream-fallback' | 'deterministic-only' | 'failed-retryable'
+  analysisModel?: AnalysisModel | 'platform-default'
   /** 仅 Judge 模式可见的脱敏 Prompt 快照；Partner/回放不下发原文。 */
   promptPreview?: string
 }
@@ -176,7 +177,7 @@ export type StartAnalysisRequest = {
   /** 工资条模式的本地确定性摘要；仅 payslip 模式下随请求提交。 */
   payslipSummary?: PayslipSummary
   simulatedError?: boolean
-  /** @deprecated 历史兼容字段；当前产品 UI 不暴露模型选择，也不会发送。 */
+  /** 登录用户显式选择的分析模型；未指定时跟随 InfiniSynapse 平台默认。 */
   analysisModel?: AnalysisModel
 }
 

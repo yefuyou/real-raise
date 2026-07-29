@@ -132,6 +132,28 @@ export class RealRaiseApiClient {
     )
   }
 
+  /** 显式播放真实任务存档；即使已登录或已配置 Worker，也绝不发起实时任务。 */
+  public async startReplayAnalysis(
+    request: StartAnalysisRequest
+  ): Promise<StartAnalysisResponse> {
+    const replayRequest = { ...request }
+    delete replayRequest.analysisModel
+    const replayTaskId = await findReplayForRequest(replayRequest)
+    if (replayTaskId) {
+      return {
+        taskId: replayTaskId,
+        status: 'queued',
+        calculation: replayRequest.calculation,
+      }
+    }
+    throw new ServerAnalysisUnavailable(
+      '当前输入暂无真实任务回放，请选择一个预设案例后重试。',
+      'REPLAY_NOT_FOUND',
+      404,
+      false,
+    )
+  }
+
   public async cancelAnalysis(taskId: string): Promise<boolean> {
     if (this.useMock || taskId.startsWith('mock-task-')) {
       mockRequests.delete(taskId)

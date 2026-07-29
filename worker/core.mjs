@@ -100,6 +100,7 @@ export function buildCompletedProvenance({ execution, request, vendorTaskId, cac
     taskGoal: TASK_GOAL,
     sourceIds: context.source_index.map((source) => source.source_id),
     inputSignature: context.provenance.input_signature,
+    analysisModel: request.analysisModel ?? 'platform-default',
     artifactStatus,
     ...(execution.mode === 'judge-live' ? { promptPreview: buildPrompt(request) } : {}),
     ...(cached ? { cached: true } : {}),
@@ -509,6 +510,7 @@ export function buildInputSignature(request) {
     locale: request.locale ?? 'zh-CN',
     inputMode: request.inputMode ?? 'basic',
     incomeInputMode: request.incomeInputMode ?? 'net',
+    analysisModel: request.analysisModel ?? 'platform-default',
     detailedBreakdown: request.detailedBreakdown ?? null,
     payslipSummary: request.payslipSummary ?? null,
   }))
@@ -565,6 +567,7 @@ export function buildAnalysisContext(request) {
     provenance: {
       calculation_version: request.calculationVersion,
       input_signature: buildInputSignature(request),
+      analysis_model: request.analysisModel ?? 'platform-default',
       generated_by: 'real-raise-worker',
     },
   }
@@ -705,6 +708,7 @@ export function buildManifest({ requestId, vendorTaskId, request, execution, art
     mode: execution.mode,
     attribution: execution.attribution,
     inputSignature: context.provenance.input_signature,
+    analysisModel: request.analysisModel ?? 'platform-default',
     sourceIds: context.source_index.map((source) => source.source_id),
     artifactStatus,
     generatedAt: new Date().toISOString(),
