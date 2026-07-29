@@ -7,15 +7,6 @@ import type {
 } from './realRaiseContract'
 import { OFFICIAL_2025_INCOME_BENCHMARKS } from '../data/official2025'
 import { OFFICIAL_2026_H1_CPI } from '../data/official2026'
-import { loadApiKey } from './apiKeyStore'
-import {
-  cancelByokTask,
-  exportByokReplay,
-  getByokArtifact,
-  isByokTask,
-  startByokAnalysis,
-  subscribeByokTask,
-} from './infiniSynapseBrowserClient'
 import {
   cancelReplayTask,
   findReplayForRequest,
@@ -64,20 +55,19 @@ function sourcesForRequest(request: StartAnalysisRequest): SourceReference[] {
 }
 
 /**
- * 四态模式：
+ * 三态产品路径：
  * - `server-live`：生产站经 Cloudflare Worker 调用平台，浏览器不接触项目 Key；
- * - `live`：未配置 Worker 的开发/回滚版本可继续使用访客自己的 BYOK；
- * - `replay`：无 Key，但当前输入与某个真实任务存档一致，播放存档（零额度）；
- * - `mock`：无 Key 且无匹配存档，本地模拟状态机。
- * 三态在 UI 上显式标注，回放绝不冒充实时。
+ * - `replay`：未登录时，仅当当前输入与某个真实任务存档一致才播放存档；
+ * - `mock`：仅供自动化测试显式注入，不是用户入口。
+ * 回放绝不冒充实时；BYOK 不再是产品路径。
  */
-export type AnalysisMode = 'server-live' | 'live' | 'replay' | 'mock'
+export type AnalysisMode = 'server-live' | 'replay' | 'mock'
 
 export class RealRaiseApiClient {
   private useMock: boolean
 
   constructor(options: AnalysisClientOptions = {}) {
-    // 不强制 Mock 时，由浏览器里是否配置了访问者自己的 API Key 决定实际模式。
+    // 未连接 Worker 时只允许真实回放；Mock 仅由测试显式注入。
     this.useMock = options.useMock ?? false
   }
 
@@ -86,10 +76,10 @@ export class RealRaiseApiClient {
   }
 
   /** 同步可知的模式（replay 需异步匹配存档，由 startAnalysis 决定）。 */
-  public getActiveMode(): 'server-live' | 'live' | 'mock' {
+  public getActiveMode(): 'server-live' | 'replay' | 'mock' {
     if (this.useMock) return 'mock'
     if (isServerAnalysisConfigured()) return 'server-live'
-    return loadApiKey() ? 'live' : 'mock'
+    return 'replay'
   }
 
   public async startAnalysis(
@@ -113,25 +103,27 @@ export class RealRaiseApiClient {
         if (replayTaskId) {
           return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
         }
-        return this.mockStartAnalysis(request)
+        throw new ServerAnalysisUnavailable(
+          '当前输入暂无真实任务回放，请选择预设案例、登录后生成个人报告，或进入评委模式。',
+          'REPLAY_NOT_FOUND',
+          404,
+          false,
+        )
       }
     }
 
-    if (loadApiKey()) {
-      const handle = startByokAnalysis(request, loadApiKey(), sourcesForRequest(request))
-      return {
-        taskId: handle.taskId,
-        status: handle.status,
-        calculation: request.calculation,
-      }
-    }
-
-    // 无 Key：先找真实任务存档（输入一致才播放），找不到再退演示模式。
+    // 未登录：只找真实任务存档（输入一致才播放），找不到就明确提示，
+    // 不再偷偷切入 BYOK 或本地 Mock。
     const replayTaskId = await findReplayForRequest(request)
     if (replayTaskId) {
       return { taskId: replayTaskId, status: 'queued', calculation: request.calculation }
     }
-    return this.mockStartAnalysis(request)
+    throw new ServerAnalysisUnavailable(
+      '当前输入暂无真实任务回放，请选择预设案例、登录后生成个人报告，或进入评委模式。',
+      'REPLAY_NOT_FOUND',
+      404,
+      false,
+    )
   }
 
   public async cancelAnalysis(taskId: string): Promise<boolean> {
@@ -141,8 +133,7 @@ export class RealRaiseApiClient {
     }
     if (isServerTask(taskId)) return cancelServerTask(taskId)
     if (isReplayTask(taskId)) return cancelReplayTask(taskId)
-    if (!isByokTask(taskId)) return false
-    return cancelByokTask(taskId)
+    return false
   }
 
   public subscribeTaskEvents(
@@ -155,13 +146,14 @@ export class RealRaiseApiClient {
     }
     if (isServerTask(taskId)) return subscribeServerTask(taskId, onEvent)
     if (isReplayTask(taskId)) return subscribeReplayTask(taskId, onEvent)
-    return subscribeByokTask(taskId, onEvent)
-  }
-
-  /** dev 工具：把一次真实任务导出为回放包 JSON；非真实任务返回 null。 */
-  public exportReplay(taskId: string, scenarioId: string): string | null {
-    if (taskId.startsWith('mock-task-') || isReplayTask(taskId) || isServerTask(taskId)) return null
-    return exportByokReplay(taskId, scenarioId)
+    onEvent({
+      type: 'failed',
+      taskId,
+      code: 'TASK_NOT_FOUND',
+      message: '任务不存在或当前页面没有可用的实时任务。',
+      retryable: true,
+    })
+    return () => undefined
   }
 
   /**
@@ -188,7 +180,7 @@ export class RealRaiseApiClient {
       if (fileName === 'explanation.md') return buildMockExplanationMarkdown(taskId, stored)
       return null
     }
-    return getByokArtifact(taskId, fileName)
+    return null
   }
 
   private async mockStartAnalysis(request: StartAnalysisRequest): Promise<StartAnalysisResponse> {

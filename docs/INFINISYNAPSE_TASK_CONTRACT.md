@@ -14,8 +14,8 @@
 ```
 
 生产 Worker 的 Partner/Judge 模式下，浏览器永远不持有 InfiniSynapse
-API Key，也不直接调用供应商域名。静态站仍保留显式 BYOK 备用模式，
-用户 Key 只存在其当前浏览器。工资、扣缴、分类支出、结余和情景计算由
+API Key，也不直接调用供应商域名。产品不提供 BYOK 备用模式；未登录用户只
+播放真实任务存档。工资、扣缴、分类支出、结余和情景计算由
 Real Raise 的确定性逻辑负责；InfiniSynapse 负责解释、排序、比较已给定
 情景并产出报告正文。
 
@@ -57,7 +57,8 @@ Real Raise 的确定性逻辑负责；InfiniSynapse 负责解释、排序、比�
 
 ## 当前实现状态
 
-Cloudflare Worker、Partner SSO、Judge 会话、BYOK、Replay 和 Mock 均有
-独立执行模式。生产发布仍以 `docs/CRITICAL_DATA_CHAIN_RELEASE.md` 的
+Cloudflare Worker、Partner SSO、Judge 会话和 Replay 均有独立执行模式；Mock
+只允许自动化测试显式注入，不是产品入口。生产发布仍以
+`docs/CRITICAL_DATA_CHAIN_RELEASE.md` 的
 门禁为准；任何模式都必须在 UI 明示来源，不能把回放或本地模板冒充实时
 平台任务。

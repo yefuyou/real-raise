@@ -88,12 +88,12 @@ export type AnalysisCityContext = {
 }
 
 export type AnalysisExecutionProvenance = {
-  mode: 'partner-live' | 'judge-live' | 'byok-live' | 'replay' | 'mock'
+  mode: 'partner-live' | 'judge-live' | 'replay' | 'mock'
   narrativeSource: 'infinisynapse-live' | 'infinisynapse-replay' | 'local-template'
   structuredInsightSource: 'real-raise-deterministic'
   calculationAuthority: 'worker-deterministic' | 'local-deterministic'
   calculationVersion: typeof CALCULATION_VERSION
-  attribution: 'partner-user-key' | 'judge-project-key' | 'browser-user-key' | 'none'
+  attribution: 'partner-user-key' | 'judge-project-key' | 'none'
   vendorTaskId?: string
   cached?: boolean
 }
