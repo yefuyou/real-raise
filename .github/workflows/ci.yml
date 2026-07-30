@@ -26,6 +26,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run verify
+      - run: npm run audit:outputs
       - run: npm run worker:test
       - run: npm run server:test
       - run: npm run build

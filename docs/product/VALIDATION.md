@@ -16,6 +16,32 @@
 | 平台产物缺失是否诚实降级 | 模拟 artifact 读取失败 | 契约定义了 fallback 状态 | 需 UI 集成验证 |
 | 预设案例是否有代表性 | 案例命题评审 + 结果对账 | 用户反馈现有案例设计弱 | 未通过 |
 
+> “用户反馈”两项目前没有原文、渠道、日期或截图，只能视为待补的反馈线索；对应产品行为可以从代码复验，但不能把线索包装成已完成用户研究。详见 [产品旅程](./product-journey.md)。
+
+## VAL-20260730-01 Portfolio 事实审计
+
+- 环境 / commit：Windows，`origin/main` @ `d25bb6b`；默认 Node 18.18.0，Worker dry-run 另用 Node 22.23.1
+- 用户类型：本地匿名；生产仅做只读页面与 health 检查
+- 输入案例：`comfortable-raise`、`raise-and-fixed-costs`、`take-home-raise-shrinks`
+- 操作步骤：
+  1. `npm ci`
+  2. `npm test`
+  3. `npm run verify`
+  4. `npm run audit:outputs`
+  5. `npm run worker:test`
+  6. `npm run server:test`
+  7. `npm run build`
+  8. Node 22 下 `npm run worker:check`
+- 预期：所有命令证据可区分；固定输入在前端、Worker、Replay、CSV、Manifest 一致
+- 实际：
+  - 三输入出口一致性通过；
+  - verify、Worker test、Node server test、build、Node 22 Worker dry-run 通过；
+  - Windows `npm test` 为 44 pass / 1 fail，退出码 1，但 runner 仍打印 `ALL 44 ... PASSED`；
+  - 同一 commit 的 GitHub Linux/Node 22 CI 在审计前为 success。
+- 证据：[仓库事实审计](../engineering/repository-truth-audit.md)、`scripts/auditOutputConsistency.mjs`、GitHub Actions run `30549183266`
+- 结论：有条件通过。确定性数字出口已有新鲜证据；跨平台测试、测试汇总文案、生产 deployment identity 和 live 归因尚未达到可信 Release 标准。
+- 后续 issue：仓库当前没有 GitHub Issue；应在 Draft PR review 后建立 P0 issue 或合并到第一个 Release milestone。
+
 ## 验证记录模板
 
 ```markdown

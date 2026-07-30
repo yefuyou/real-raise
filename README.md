@@ -16,16 +16,16 @@
   <code>React</code> <code>TypeScript</code> <code>Cloudflare Workers</code> <code>InfiniSynapse</code>
 </p>
 
-Real Raise 是一个面向中国职场人的个人收入诊断工具。输入现在与下一阶段的工资、扣缴和生活支出，它会回答一个比“涨了多少”更实际的问题：
+Real Raise 是一个面向中国职场人的个人收入诊断工具，也是一次关于“涨薪后的生活余量”的产品实验。输入现在与下一阶段的工资、扣缴和生活支出，它会回答一个比“涨了多少”更实际的问题：
 
 > 经过个税、社保公积金和生活支出之后，这次涨薪每月真正还能留下多少？
 
-所有核心金额都由本地确定性公式计算。AI 只读取计算结果与来源做解释，不负责改数字。
+所有核心金额都由确定性公式计算；live 请求还会由 Worker 重新计算。AI 只读取冻结结果与来源做解释，不负责改数字。
 
 <p align="center">
-  <img src="./assets/readme/product-overview.png" width="100%" alt="Real Raise 工资条模式：左侧拆解两期工资与扣缴，右侧给出真实月结余和 AI 解读入口">
+  <img src="./assets/readme/product-overview-current.png" width="100%" alt="Real Raise 当前工资条模式：左侧拆解两期工资与扣缴，右侧给出真实月结余和明确标注的任务回放入口">
 </p>
-<p align="center"><sub>工资条模式的真实界面；示例数据一键填入，可逐项覆盖。</sub></p>
+<p align="center"><sub>2026-07-30 从当前 main 本地构建拍摄；无登录身份，示例数据可逐项覆盖。</sub></p>
 
 ## 先看懂这一笔涨薪
 
@@ -70,7 +70,8 @@ Real Raise 是一个面向中国职场人的个人收入诊断工具。输入现
 
 - [`src/domain/salarySlip.ts`](./src/domain/salarySlip.ts)：工资条估算、扣缴汇总与到手计算。
 - [`src/domain/livingCost.ts`](./src/domain/livingCost.ts)：生活成本、购买力与结余变化。
-- [`worker/core.mjs`](./worker/core.mjs)：请求校验、签名会话、限流与额度保护。
+- [`worker/core.mjs`](./worker/core.mjs)：请求校验、服务端复算、诊断上下文与权威产物。
+- [`worker/index.mjs`](./worker/index.mjs)：Partner/Judge 鉴权、会话、限流与额度保护。
 - [`worker/infiniSynapse.mjs`](./worker/infiniSynapse.mjs)：AI 解释层适配，不参与核心金额计算。
 
 ## 30 秒上手
@@ -80,7 +81,7 @@ Real Raise 是一个面向中国职场人的个人收入诊断工具。输入现
 1. 打开 [Real Raise 在线版](https://plain-wind-ae46.yefuyou2333.workers.dev/)。
 2. 在收入区切换到 **工资条**，点击 **填入示例**。
 3. 查看“税前 → 到手”扣缴拆解、月/年结余与维持原生活所需月入。
-4. 使用存档回放、Mock 演示，或登录 InfiniSynapse 生成个性化解读。
+4. 查看明确标注的历史任务回放，或登录 InfiniSynapse 生成个性化解读。
 
 ### 本地运行
 
@@ -93,10 +94,11 @@ npm ci
 npm run dev
 ```
 
-默认本地开发使用 Mock 模式，不需要 API Key，也不会消耗平台额度。
+默认本地开发不连接实时服务，只提供确定性算表与精确匹配的历史任务回放；Mock 仅用于显式测试注入，不是产品入口。
 
 ```bash
 npm test             # 确定性计算、数据与回放断言
+npm run audit:outputs # 三个固定输入的前端/Worker/Replay/CSV/Manifest 对账
 npm run worker:test  # Worker 边界、会话、限流与额度保护
 npm run build        # TypeScript 严格检查 + 生产构建
 npm run worker:check # Cloudflare 配置干跑
@@ -110,8 +112,8 @@ npm run worker:check # Cloudflare 配置干跑
 | 工资条模式 | 两期税前、个税、社保、公积金与到手拆解 | 可用 |
 | 生活支出 | 住房 + 六类日常消费的个性化变化 | 可用 |
 | 城市与历史基准 | 全国、北京、上海、深圳、合肥及 2021–2025 历史参考 | 可用，按数据覆盖显式回退 |
-| AI 演示 | Mock 状态机与真实任务存档回放 | 免登录可用 |
-| AI 真实链路 | SSE 进度、三份产物、缓存与可读降级 | 需平台登录 |
+| AI 演示 | 明确标注的真实历史任务回放；Mock 仅用于测试 | 免登录可用 |
+| AI 真实链路 | SSE 进度、Worker 复算、Agent 解释与可下载证据产物 | 需平台登录；当前 Worker 无结果缓存/刷新恢复 |
 | Cloudflare 服务层 | 静态站与 `/api/*` 同源、Secret 隔离、限流与每日硬上限 | 已接入 |
 
 ## 数据可信度
@@ -134,7 +136,7 @@ npm run worker:check # Cloudflare 配置干跑
 
 ## AI 与安全边界
 
-InfiniSynapse 是解释层，不是计算器。当前用户路径是 Partner SSO、真实任务回放与本地 Mock；平台不可用、达到额度或没有登录时，确定性算表仍然可用。Worker 保留的短时会话接口仅用于兼容历史部署，不属于产品入口。
+InfiniSynapse 是解释层，不是计算器。当前用户路径是 Partner SSO 与真实任务回放；Mock 只在显式测试中启用。平台不可用、达到额度或没有登录时，确定性算表仍然可用。Judge UI 已退出产品路径；Judge 后端兼容代码仍在，2026-07-30 本轮健康检查显示生产未配置 Judge。
 
 项目不会提交或上传：
 
@@ -143,25 +145,30 @@ InfiniSynapse 是解释层，不是计算器。当前用户路径是 Partner SSO
 - 未脱敏的任务日志；
 - 没有来源、年份与统计范围的数据。
 
-生产部署由同一个 Cloudflare Worker 托管静态资源与 API。登录用户的实时任务通过 Partner SSO 归因，用户级 Key 只保存在服务端会话存储中。当前生产仍存在待删除的历史 Judge/项目 Key 后端配置；它不是产品入口，迁移状态以最新 Checkpoint 为准。
+生产部署由同一个 Cloudflare Worker 托管静态资源与 API。登录用户的实时任务通过 Partner SSO 归因，用户级 Key 只保存在服务端会话存储中。本轮没有新建真实 Agent 任务验证生产归因，且线上 bundle 无法从 GitHub 记录追到 commit；详见 [仓库事实审计](./docs/engineering/repository-truth-audit.md)。
 
 ## 文档入口
 
 | 文档 | 用途 |
 | --- | --- |
 | [`docs/README.md`](./docs/README.md) | 文档总入口与现行/历史分类 |
+| [`repository-truth-audit.md`](./docs/engineering/repository-truth-audit.md) | 代码、测试、GitHub、生产与公开证据审计 |
+| [`request-lifecycle.md`](./docs/engineering/request-lifecycle.md) | 映射到真实文件的请求、鉴权、fallback、产物与恢复链路 |
+| [`product-journey.md`](./docs/product/product-journey.md) | 从生活问题、MVP、比赛功能到 Portfolio 接管的时间线 |
+| [`decision-log.md`](./docs/design/decision-log.md) | 产品级决策、备选方案与重新考虑条件 |
+| [`项目总复盘`](./docs/retrospective/2026-07-real-raise-retrospective.md) | 产品、工程、AI 协作、传播与个人能力复盘 |
 | [`PRODUCT_SPEC.md`](./docs/product/PRODUCT_SPEC.md) | 产品目标、需求、边界与当前差距 |
 | [`USER_FLOW.md`](./docs/product/USER_FLOW.md) | 匿名、登录、回放、实时报告与重新分析流程 |
 | [`CALCULATION_RULES.md`](./docs/product/CALCULATION_RULES.md) | 确定性公式、工资条估算与数据边界 |
 | [`STATE_MACHINES.md`](./docs/product/STATE_MACHINES.md) | 认证、回放、实时任务和报告生命周期 |
 | [`decisions/`](./docs/decisions/README.md) | 重大产品与架构决定 |
 | [`CHANGELOG.md`](./CHANGELOG.md) | 实际发生的版本变化 |
-| [`最新 Checkpoint`](./docs/checkpoints/2026-07-30-baseline.md) | Git、生产、契约、数据和测试快照 |
+| [`2026-07-30 01:15 Checkpoint`](./docs/checkpoints/2026-07-30-baseline.md) | 历史时间点的 Git、生产、契约、数据和测试快照 |
 | [`数据资产目录`](./docs/data/README.md) | 数据覆盖、来源与回放资产 |
 | [`部署手册`](./docs/operations/DEPLOYMENT.md) | Cloudflare 验证、发布与回滚 |
 
 ## 项目背景
 
-Real Raise 参加 [InfiniSynapse × CSDN Vibe Coding 泛数据分析应用开发大赛](https://infinisynapse.cn/contest/vibe-coding)。它不做宏观数据大屏，而是争取在 30 秒内回答：
+Real Raise 源于 [InfiniSynapse × CSDN Vibe Coding 泛数据分析应用开发大赛](https://infinisynapse.cn/contest/vibe-coding)，现已转为 Product Portfolio Case Study。它不做宏观数据大屏，而是争取在 30 秒内回答：
 
 > 这次涨薪，经过扣缴和生活支出之后，真正留在我手里的还有多少？
