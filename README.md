@@ -130,7 +130,7 @@ npm run worker:check # Cloudflare 配置干跑
 - **住房支出优先级**：始终以用户实际输入为准，城市“居住类 CPI”不替代房租或房贷。
 - **官方未公布就留空**：不通过插值或相邻年份补齐缺失事实。
 
-详见 [`DATA_DICTIONARY.md`](./docs/DATA_DICTIONARY.md) 与 [`CITY_BENCHMARK_CONTRACT.md`](./docs/CITY_BENCHMARK_CONTRACT.md)。
+详见 [`DATA_DICTIONARY.md`](./docs/data/DATA_DICTIONARY.md) 与 [`CITY_BENCHMARK_CONTRACT.md`](./docs/data/CITY_BENCHMARK_CONTRACT.md)。
 
 ## AI 与安全边界
 
@@ -143,18 +143,22 @@ InfiniSynapse 是解释层，不是计算器。当前用户路径是 Partner SSO
 - 未脱敏的任务日志；
 - 没有来源、年份与统计范围的数据。
 
-生产部署由同一个 Cloudflare Worker 托管静态资源与 API。项目 Key 只存在 Worker Secret；接口同时设置短时会话、请求校验、速率限制、每日硬上限和并发保险丝。
+生产部署由同一个 Cloudflare Worker 托管静态资源与 API。登录用户的实时任务通过 Partner SSO 归因，用户级 Key 只保存在服务端会话存储中。当前生产仍存在待删除的历史 Judge/项目 Key 后端配置；它不是产品入口，迁移状态以最新 Checkpoint 为准。
 
 ## 文档入口
 
 | 文档 | 用途 |
 | --- | --- |
-| [`DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | Cloudflare 部署、Secrets 与发布检查 |
-| [`INFINISYNAPSE_INTEGRATION_BOUNDARY.md`](./docs/INFINISYNAPSE_INTEGRATION_BOUNDARY.md) | 确定性计算与 AI 解释的职责边界 |
-| [`INFINISYNAPSE_TASK_CONTRACT.md`](./docs/INFINISYNAPSE_TASK_CONTRACT.md) | 任务输入、进度事件与产物契约 |
-| [`PAYSLIP_UX_SPEC.md`](./docs/PAYSLIP_UX_SPEC.md) | 工资条估算、口径与交互方案 |
-| [`DATA_DICTIONARY.md`](./docs/DATA_DICTIONARY.md) | 数据来源、字段与标签口径 |
-| [`SUBMISSION_MATERIALS.md`](./docs/SUBMISSION_MATERIALS.md) | 比赛演示与提交材料 |
+| [`docs/README.md`](./docs/README.md) | 文档总入口与现行/历史分类 |
+| [`PRODUCT_SPEC.md`](./docs/product/PRODUCT_SPEC.md) | 产品目标、需求、边界与当前差距 |
+| [`USER_FLOW.md`](./docs/product/USER_FLOW.md) | 匿名、登录、回放、实时报告与重新分析流程 |
+| [`CALCULATION_RULES.md`](./docs/product/CALCULATION_RULES.md) | 确定性公式、工资条估算与数据边界 |
+| [`STATE_MACHINES.md`](./docs/product/STATE_MACHINES.md) | 认证、回放、实时任务和报告生命周期 |
+| [`decisions/`](./docs/decisions/README.md) | 重大产品与架构决定 |
+| [`CHANGELOG.md`](./CHANGELOG.md) | 实际发生的版本变化 |
+| [`最新 Checkpoint`](./docs/checkpoints/2026-07-30-baseline.md) | Git、生产、契约、数据和测试快照 |
+| [`数据资产目录`](./docs/data/README.md) | 数据覆盖、来源与回放资产 |
+| [`部署手册`](./docs/operations/DEPLOYMENT.md) | Cloudflare 验证、发布与回滚 |
 
 ## 项目背景
 
